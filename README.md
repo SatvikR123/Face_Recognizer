@@ -1,7 +1,7 @@
 # Face Recognition Project
 
 ## Description
-This project is a Python application that performs face recognition. It can detect faces in images, generate embeddings for these faces, and then compare them to find similar faces in a given dataset of images.
+This project is a Python application that performs face recognition. It can detect faces in images, generate embeddings for these faces, and then compare them to find similar faces in a given dataset of images(Folder/Gallery).
 
 ## Features
 -   Detects faces in images using MTCNN.

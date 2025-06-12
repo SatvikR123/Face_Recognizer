@@ -3,15 +3,7 @@ from mtcnn import MTCNN
 from deepface import DeepFace
 import numpy as np
 from PIL import Image
-import matplotlib.pyplot as plt
 import os
-os.environ['QT_QPA_PLATFORM'] = 'xcb'
-os.environ['DISPLAY'] = ':0'
-
-# Set matplotlib backend - try different ones if needed
-import matplotlib
-matplotlib.use('Qt5Agg')  # Alternatives: 'Qt5Agg', 'GTK3Agg', 'WXAgg' 
-
 
 class FaceRecognition:
     def __init__(self, directory):
@@ -116,61 +108,109 @@ class FaceRecognition:
         matches.sort(key=lambda x: x[1], reverse=True)
         return matches
 
-    def display_results(self, query_image_path, matches):
+    def display_results(self, query_image_path, matches, threshold):
         """
-        Display the query image and its matches in a beautiful grid layout
+        Display the query image and its matches in a grid layout
+        Args:
+            query_image_path: Path to the query image
+            matches: List of tuples containing (image_path, similarity_score)
+            threshold: Minimum similarity score used for filtering
         """
         if not matches:
             print("No matches found!")
             return
             
-        # Create a figure with subplots
-        plt.close('all')  # Close any existing figures
-        num_matches = len(matches)
-        fig = plt.figure(figsize=(20, 10))
-        
-        # Add query image at the top
         try:
-            ax = fig.add_subplot(2, 1, 1)
-            query_img = Image.open(query_image_path)
-            ax.imshow(query_img)
-            ax.set_title('Query Image', fontsize=16, pad=15)
-            ax.axis('off')
+            # Load query image
+            query_img = cv2.imread(query_image_path)
+            if query_img is None:
+                raise ValueError(f"Could not load query image: {query_image_path}")
+            
+            # Get image dimensions
+            height, width = query_img.shape[:2]
+            
+            # Create a grid layout
+            num_matches = len(matches)
+            grid_size = int(np.ceil(np.sqrt(num_matches)))
+            
+            # Calculate window positions
+            window_width = width // grid_size
+            window_height = height // grid_size
+            
+            # Display query image
+            cv2.imshow('Query Image', query_img)
+            
+            # Display matching images in a grid
+            for i, (match_path, similarity) in enumerate(matches):
+                try:
+                    image = cv2.imread(match_path)
+                    if image is None:
+                        continue
+                        
+                    # Resize image to fit grid
+                    image = cv2.resize(image, (window_width, window_height))
+                    
+                    # Calculate window position
+                    row = i // grid_size
+                    col = i % grid_size
+                    x = col * window_width
+                    y = row * window_height
+                    
+                    # Create window name
+                    filename = os.path.basename(match_path)
+                    window_name = f"Similar image - {filename} (Similarity: {similarity:.3f})"
+                    
+                    # Create window and set position
+                    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+                    cv2.resizeWindow(window_name, window_width, window_height)
+                    cv2.moveWindow(window_name, x, y)
+                    cv2.imshow(window_name, image)
+                    
+                except Exception as e:
+                    print(f"Error displaying match image {match_path}: {e}")
+                    continue
+            
+            # Print summary
+            print("\nSearch complete!")
+            print(f"Found {len(matches)} similar faces with similarity >= {threshold}")
+            print("\nPress any key to continue...")
+            cv2.waitKey(0)  # Wait for key press
+            
+        except Exception as e:
+            print(f"Error in display_results: {e}")
+        finally:
+            cv2.destroyAllWindows()
+
+    def show_matches(self, query_image_path, matches):
+        if not matches:
+            print("No matches found!")
+            return
+            
+        # Display query image
+        try:
+            query_img = cv2.imread(query_image_path)
+            cv2.imshow('Query Image', query_img)
+            cv2.waitKey(1000)  # Show for 1 second
+            cv2.destroyAllWindows()
         except Exception as e:
             print(f"Error loading query image: {e}")
             return
             
-        # Add matching images in a grid below
-        grid_size = int(np.ceil(np.sqrt(num_matches)))
-        
+        # Display matching images one by one
         for i, (match_path, similarity) in enumerate(matches):
             try:
-                ax = fig.add_subplot(grid_size, grid_size, i + 1)
-                match_img = Image.open(match_path)
-                ax.imshow(match_img)
-                
-                # Create a more informative title
+                image = cv2.imread(match_path)
                 filename = os.path.basename(match_path)
-                title = f"{filename}\nSimilarity: {similarity:.3f}"
-                ax.set_title(title, fontsize=12, pad=10)
-                
-                # Add a border around the image
-                ax.patch.set_edgecolor('black')
-                ax.patch.set_linewidth(2)
-                
-                # Add a background color for the title
-                title = ax.set_title(title, pad=10)
-                title.set_bbox(dict(facecolor='white', alpha=0.7, edgecolor='black'))
-                
-                ax.axis('off')
+                print(f"Similarity score: {similarity:.4f}")
+                cv2.imshow(f"Similar image - {filename}", image)
+                cv2.waitKey(0)  # Wait for key press
+                cv2.destroyAllWindows()
             except Exception as e:
-                print(f"Error loading match image {match_path}: {e}")
+                print(f"Error displaying match image {match_path}: {e}")
                 continue
         
-        # Adjust layout for better spacing
-        plt.tight_layout()
-        plt.subplots_adjust(top=0.95)
-        plt.show(block=True)  # This will keep the window open
+        print("\nSearch complete!")
+        print(f"Found {len(matches)} similar faces with similarity >= {threshold}")
 
 if __name__ == "__main__":
     # Initialize face recognition with your images directory
@@ -180,10 +220,11 @@ if __name__ == "__main__":
     face_recognizer.load_dataset()
     
     # Get query image path from user
-    query_image_path = 'image.jpeg'
+    query_image_path = 'sk_query.jpg'
+    threshold = 0.5
     
     # Search for similar faces
-    matches = face_recognizer.search_similar_faces(query_image_path)
+    matches = face_recognizer.search_similar_faces(query_image_path, threshold)
     
     if not matches:
         print("No similar faces found!")
@@ -193,5 +234,5 @@ if __name__ == "__main__":
             print(f"{i+1}. {os.path.basename(path)}: Similarity = {score:.3f}")
         
         # Show visualization with all matches
-        face_recognizer.display_results(query_image_path, matches)
-        input("Press Enter to exit...")  # Keep the script running until user presses Enter
+        face_recognizer.display_results(query_image_path, matches, threshold)
+        input("Press Enter to exit...")  # Keep the script running until user presses Enter 

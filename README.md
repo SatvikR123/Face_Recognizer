@@ -86,5 +86,3 @@ Press any key to close each image window. After all matching images are shown, y
 ## Contributing
 Contributions are welcome! If you have suggestions for improvements or find any issues, please feel free to open an issue or submit a pull request.
 
-## License
-This project is currently unlicensed. You can add a license file (e.g., MIT, Apache 2.0) if you wish to share it under specific terms.

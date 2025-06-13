@@ -1,10 +1,33 @@
+"""
+Face Recognition App
+
+This is a face recognition application that uses MTCNN for face detection and DeepFace for face embedding. It allows users to upload an image and find similar faces from a local image dataset (a folder/gallery).
+
+Features:
+- Face detection using MTCNN
+- Face embedding using DeepFace with the Facenet model
+- Cosine similarity calculation between face embeddings
+- Search for similar faces in a local image dataset
+- Interactive web interface built with Streamlit
+
+Technologies Used:
+- Python 3.x
+- Streamlit
+- OpenCV (`opencv-python`)
+- MTCNN (`mtcnn`)
+- DeepFace (`deepface`)
+- NumPy (`numpy`)
+- TensorFlow (`tensorflow`)
+- Keras (`keras`)
+
+"""
+
 import cv2
 from mtcnn import MTCNN
 from deepface import DeepFace
 import numpy as np
 import os
 import streamlit as st
-from PIL import Image
 
 class FaceRecognition:
     def __init__(self, directory):
@@ -16,6 +39,9 @@ class FaceRecognition:
         self.model = DeepFace.build_model('Facenet')
 
     def extract_face(self, image):
+        """
+        Extracts a face from the given image using MTCNN.
+        """
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         faces = self.detector.detect_faces(image)
         if faces:
@@ -26,6 +52,9 @@ class FaceRecognition:
         return None                
 
     def get_embeddings(self, face):
+        """
+        Generates face embeddings using the DeepFace library with the Facenet model.            
+        """
         face = face.astype('float32')
         embeddings = DeepFace.represent(face, model_name='Facenet', enforce_detection=False)
         if embeddings:
@@ -33,7 +62,9 @@ class FaceRecognition:
         return None
         
     def load_dataset(self):
-        # Get all image files in the directory
+        """
+        Loads the dataset of images from the specified directory.
+        """
         for filename in os.listdir(self.directory):
             if filename.endswith(('.jpg', '.jpeg', '.png')):  # Check for common image extensions
                 path = os.path.join(self.directory, filename)
@@ -47,30 +78,19 @@ class FaceRecognition:
 
     def check_similarity(self, face1, face2):
         """
-        Calculate cosine similarity between two face embeddings
-        Args:
-            face1: First embedding array (1,128)
-            face2: Second embedding array (1,128)
-        Returns:
-            Cosine similarity score (float)
+        Calculates the cosine similarity between two face embeddings.
         """
-        # Flatten the embeddings to 1D arrays
         face1 = face1.flatten()
         face2 = face2.flatten()
         
-        # Calculate cosine similarity
         cosine_similarity = np.dot(face1, face2) / (np.linalg.norm(face1) * np.linalg.norm(face2))
         return cosine_similarity
 
-    def search_similar_faces(self, query_image_path, threshold=0.5):  
+    def search_similar_faces(self, query_image_path, threshold=0.5):
         """
-        Search for images in the dataset that contain similar faces to the query image
-        Args:
-            query_image_path: Path to the query image
-            threshold: Minimum similarity score to consider a match
-        Returns:
-            List of tuples containing (image_path, similarity_score)
-        """
+        Searches for similar faces in the dataset based on the query image.
+        """       
+
         query_image = cv2.imread(query_image_path)
         query_face = self.extract_face(query_image)
         
@@ -84,7 +104,7 @@ class FaceRecognition:
         print(f"\nQuery image: {query_image_path}")
         print("Scanning images and their similarity scores:")
         
-        # Get all image files in the directory
+
         for filename in os.listdir(self.directory):
             if filename.endswith(('.jpg', '.jpeg', '.png')):
                 path = os.path.join(self.directory, filename)
@@ -105,38 +125,32 @@ class FaceRecognition:
                 if similarity >= threshold:
                     matches.append((path, similarity))  
         
-        # Sort matches by similarity (highest first)
         matches.sort(key=lambda x: x[1], reverse=True)
         return matches
 
-
-
 def main():
+    """
+    Main function to run the face recognition application.
+    """
     st.title("Face Recognition App")
 
-    # Initialize face recognition with your images directory
     face_recognizer = FaceRecognition("images")
     
-    # Load the dataset
     with st.spinner('Loading dataset...'):
         face_recognizer.load_dataset()
     st.success('Dataset loaded successfully!')
 
-    # Get query image from user
     uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
     if uploaded_file is not None:
-        # Save the uploaded file to a temporary location
         query_image_path = os.path.join("uploaded_image.jpg")
         with open(query_image_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
-        # Display the query image
         st.image(query_image_path, caption='Query Image', use_container_width=True)
 
         threshold = st.slider("Similarity Threshold", 0.0, 1.0, 0.5, 0.01)
 
-        # Search for similar faces
         if st.button("Search for similar faces"):
             with st.spinner('Searching...'):
                 matches = face_recognizer.search_similar_faces(query_image_path, threshold)
@@ -146,7 +160,6 @@ def main():
             else:
                 st.write(f"Found {len(matches)} matches:")
                 
-                # Display matches
                 for i, (path, score) in enumerate(matches):
                     st.write(f"{i+1}. {os.path.basename(path)}: Similarity = {score:.3f}")
                     st.image(path, caption=f'Match {i+1}', use_container_width=True)

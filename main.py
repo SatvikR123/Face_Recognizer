@@ -39,9 +39,9 @@ class FaceRecognition:
         self.model = DeepFace.build_model('Facenet')
 
     def extract_face(self, image):
-        """
-        Extracts a face from the given image using MTCNN.
-        """
+        
+        #Extracts a face from the given image using MTCNN.
+        
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         faces = self.detector.detect_faces(image)
         if faces:
@@ -52,9 +52,9 @@ class FaceRecognition:
         return None                
 
     def get_embeddings(self, face):
-        """
-        Generates face embeddings using the DeepFace library with the Facenet model.            
-        """
+        
+        #Generates face embeddings using the DeepFace library with the Facenet model.            
+        
         face = face.astype('float32')
         embeddings = DeepFace.represent(face, model_name='Facenet', enforce_detection=False)
         if embeddings:
@@ -62,9 +62,9 @@ class FaceRecognition:
         return None
         
     def load_dataset(self):
-        """
-        Loads the dataset of images from the specified directory.
-        """
+        
+        #Loads the dataset of images from the specified directory.
+        
         for filename in os.listdir(self.directory):
             if filename.endswith(('.jpg', '.jpeg', '.png')):  # Check for common image extensions
                 path = os.path.join(self.directory, filename)
@@ -77,9 +77,9 @@ class FaceRecognition:
                     self.y.append(filename)
 
     def check_similarity(self, face1, face2):
-        """
-        Calculates the cosine similarity between two face embeddings.
-        """
+        
+        #Calculates the cosine similarity between two face embeddings.
+        
         face1 = face1.flatten()
         face2 = face2.flatten()
         
@@ -87,10 +87,9 @@ class FaceRecognition:
         return cosine_similarity
 
     def search_similar_faces(self, query_image_path, threshold=0.5):
-        """
-        Searches for similar faces in the dataset based on the query image.
-        """       
-
+        
+        #Searches for similar faces in the dataset based on the query image.
+        
         query_image = cv2.imread(query_image_path)
         query_face = self.extract_face(query_image)
         
@@ -129,9 +128,9 @@ class FaceRecognition:
         return matches
 
 def main():
-    """
-    Main function to run the face recognition application.
-    """
+            
+    #Main function to run the face recognition application.
+    
     st.title("Face Recognition App")
 
     face_recognizer = FaceRecognition("images")

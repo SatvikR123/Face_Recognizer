@@ -52,6 +52,19 @@ The application is optimized for performance using an embedding cache and is rob
 6.  **Search for faces**: Click the "Search for Similar Faces" button.
 7.  **View results**: The application will display any images containing a match, with a green box drawn around the matched faces and their similarity scores.
 
+## Screenshots
+
+### Query Image
+*This is the image uploaded by the user to find matches.*
+
+![Query Image](path/to/your/query_image.png)
+
+### Matching Results
+*Here are the results showing the matched faces in the gallery, with bounding boxes and similarity scores.*
+
+![Match 1](path/to/your/match_1.png)
+![Match 2](path/to/your/match_2.png)
+
 ## Directory Structure
 ```
 .

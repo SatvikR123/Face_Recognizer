@@ -7,3 +7,4 @@ pillow
 matplotlib
 tensorflow
 keras
+streamlit

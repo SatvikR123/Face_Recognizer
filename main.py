@@ -2,8 +2,9 @@ import cv2
 from mtcnn import MTCNN
 from deepface import DeepFace
 import numpy as np
-from PIL import Image
 import os
+import streamlit as st
+from PIL import Image
 
 class FaceRecognition:
     def __init__(self, directory):
@@ -108,131 +109,47 @@ class FaceRecognition:
         matches.sort(key=lambda x: x[1], reverse=True)
         return matches
 
-    def display_results(self, query_image_path, matches, threshold):
-        """
-        Display the query image and its matches in a grid layout
-        Args:
-            query_image_path: Path to the query image
-            matches: List of tuples containing (image_path, similarity_score)
-            threshold: Minimum similarity score used for filtering
-        """
-        if not matches:
-            print("No matches found!")
-            return
-            
-        try:
-            # Load query image
-            query_img = cv2.imread(query_image_path)
-            if query_img is None:
-                raise ValueError(f"Could not load query image: {query_image_path}")
-            
-            # Get image dimensions
-            height, width = query_img.shape[:2]
-            
-            # Create a grid layout
-            num_matches = len(matches)
-            grid_size = int(np.ceil(np.sqrt(num_matches)))
-            
-            # Calculate window positions
-            window_width = width // grid_size
-            window_height = height // grid_size
-            
-            # Display query image
-            cv2.imshow('Query Image', query_img)
-            
-            # Display matching images in a grid
-            for i, (match_path, similarity) in enumerate(matches):
-                try:
-                    image = cv2.imread(match_path)
-                    if image is None:
-                        continue
-                        
-                    # Resize image to fit grid
-                    image = cv2.resize(image, (window_width, window_height))
-                    
-                    # Calculate window position
-                    row = i // grid_size
-                    col = i % grid_size
-                    x = col * window_width
-                    y = row * window_height
-                    
-                    # Create window name
-                    filename = os.path.basename(match_path)
-                    window_name = f"Similar image - {filename} (Similarity: {similarity:.3f})"
-                    
-                    # Create window and set position
-                    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-                    cv2.resizeWindow(window_name, window_width, window_height)
-                    cv2.moveWindow(window_name, x, y)
-                    cv2.imshow(window_name, image)
-                    
-                except Exception as e:
-                    print(f"Error displaying match image {match_path}: {e}")
-                    continue
-            
-            # Print summary
-            print("\nSearch complete!")
-            print(f"Found {len(matches)} similar faces with similarity >= {threshold}")
-            print("\nPress any key to continue...")
-            cv2.waitKey(0)  # Wait for key press
-            
-        except Exception as e:
-            print(f"Error in display_results: {e}")
-        finally:
-            cv2.destroyAllWindows()
 
-    def show_matches(self, query_image_path, matches):
-        if not matches:
-            print("No matches found!")
-            return
-            
-        # Display query image
-        try:
-            query_img = cv2.imread(query_image_path)
-            cv2.imshow('Query Image', query_img)
-            cv2.waitKey(1000)  # Show for 1 second
-            cv2.destroyAllWindows()
-        except Exception as e:
-            print(f"Error loading query image: {e}")
-            return
-            
-        # Display matching images one by one
-        for i, (match_path, similarity) in enumerate(matches):
-            try:
-                image = cv2.imread(match_path)
-                filename = os.path.basename(match_path)
-                print(f"Similarity score: {similarity:.4f}")
-                cv2.imshow(f"Similar image - {filename}", image)
-                cv2.waitKey(0)  # Wait for key press
-                cv2.destroyAllWindows()
-            except Exception as e:
-                print(f"Error displaying match image {match_path}: {e}")
-                continue
-        
-        print("\nSearch complete!")
-        print(f"Found {len(matches)} similar faces with similarity >= {threshold}")
 
-if __name__ == "__main__":
+def main():
+    st.title("Face Recognition App")
+
     # Initialize face recognition with your images directory
     face_recognizer = FaceRecognition("images")
     
     # Load the dataset
-    face_recognizer.load_dataset()
-    
-    # Get query image path from user
-    query_image_path = 'sk_query.jpg'
-    threshold = 0.5
-    
-    # Search for similar faces
-    matches = face_recognizer.search_similar_faces(query_image_path, threshold)
-    
-    if not matches:
-        print("No similar faces found!")
-    else:
-        print(f"\nFound {len(matches)} matches:")
-        for i, (path, score) in enumerate(matches):
-            print(f"{i+1}. {os.path.basename(path)}: Similarity = {score:.3f}")
-        
-        # Show visualization with all matches
-        face_recognizer.display_results(query_image_path, matches, threshold)
-        input("Press Enter to exit...")  # Keep the script running until user presses Enter 
+    with st.spinner('Loading dataset...'):
+        face_recognizer.load_dataset()
+    st.success('Dataset loaded successfully!')
+
+    # Get query image from user
+    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+
+    if uploaded_file is not None:
+        # Save the uploaded file to a temporary location
+        query_image_path = os.path.join("uploaded_image.jpg")
+        with open(query_image_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+
+        # Display the query image
+        st.image(query_image_path, caption='Query Image', use_container_width=True)
+
+        threshold = st.slider("Similarity Threshold", 0.0, 1.0, 0.5, 0.01)
+
+        # Search for similar faces
+        if st.button("Search for similar faces"):
+            with st.spinner('Searching...'):
+                matches = face_recognizer.search_similar_faces(query_image_path, threshold)
+            
+            if not matches:
+                st.write("No similar faces found!")
+            else:
+                st.write(f"Found {len(matches)} matches:")
+                
+                # Display matches
+                for i, (path, score) in enumerate(matches):
+                    st.write(f"{i+1}. {os.path.basename(path)}: Similarity = {score:.3f}")
+                    st.image(path, caption=f'Match {i+1}', use_container_width=True)
+
+if __name__ == "__main__":
+    main()

@@ -60,18 +60,16 @@ The application is optimized for performance using an embedding cache and is rob
 ## Screenshots
 
 ### Query Image
+*This is the image uploaded by the user to find matches.*
 
-_This is the image uploaded by the user to find matches._
-
-![Query Image](./useless_stuffs/query_image.png)
+![Query Image](useless_stuffs/query.png)
 
 ### Matching Results
+*Here are the results showing the matched faces in the gallery, with bounding boxes and similarity scores.*
 
-_Here are the results showing the matched faces in the gallery, with bounding boxes and similarity scores._
-
-![Match 1](./useless_stuffs/similar_1.png)
-![Match 2](./useless_stuffs/similar_2.png)
-![Match 3](./useless_stuffs/similar_3.png)
+![Match 1](useless_stuffs/similar_1.png)
+![Match 2](useless_stuffs/similar_2.png)
+![Match 3](useless_stuffs/similar_3.png)
 
 ## Directory Structure
 

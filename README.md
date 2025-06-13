@@ -1,30 +1,34 @@
 # Advanced Face Recognition Project
 
 ## Description
+
 This project is an advanced face recognition application built with Python and Streamlit. It provides a user-friendly web interface to upload a query image and find all matching individuals within a local photo gallery.
 
 The application is optimized for performance using an embedding cache and is robust enough to handle images containing multiple people, drawing bounding boxes around each detected match.
 
 ## Key Features
--   **Multiple Face Detection**: Utilizes MTCNN to accurately detect all faces within an image, not just the first one.
--   **High-Performance Caching**: Implements an intelligent caching system (`embeddings.pkl`) that saves face embeddings. The app only processes new or modified images, making startup and subsequent searches significantly faster.
--   **Accurate Face Matching**: Generates face embeddings using the DeepFace library (with the Facenet model) and calculates cosine similarity to find matches.
--   **Interactive Web UI**: A clean and simple interface built with Streamlit allows for easy image uploads, threshold adjustments, and clear presentation of results.
--   **Rich Visual Feedback**: For each match found, the application draws a bounding box around the person's face and displays the similarity score directly on the image.
+
+- **Multiple Face Detection**: Utilizes MTCNN to accurately detect all faces within an image, not just the first one.
+- **High-Performance Caching**: Implements an intelligent caching system (`embeddings.pkl`) that saves face embeddings. The app only processes new or modified images, making startup and subsequent searches significantly faster.
+- **Accurate Face Matching**: Generates face embeddings using the DeepFace library (with the Facenet model) and calculates cosine similarity to find matches.
+- **Interactive Web UI**: A clean and simple interface built with Streamlit allows for easy image uploads, threshold adjustments, and clear presentation of results.
+- **Rich Visual Feedback**: For each match found, the application draws a bounding box around the person's face and displays the similarity score directly on the image.
 
 ## Technologies Used
--   Python 3.x
--   Streamlit
--   OpenCV (`opencv-python`)
--   MTCNN (`mtcnn`)
--   DeepFace (`deepface`)
--   NumPy (`numpy`)
--   Pillow (`pillow`)
--   TensorFlow (`tensorflow`)
--   Keras (`keras`)
--   Pickle (for caching)
+
+- Python 3.x
+- Streamlit
+- OpenCV (`opencv-python`)
+- MTCNN (`mtcnn`)
+- DeepFace (`deepface`)
+- NumPy (`numpy`)
+- Pillow (`pillow`)
+- TensorFlow (`tensorflow`)
+- Keras (`keras`)
+- Pickle (for caching)
 
 ## Setup and Installation
+
 1.  **Clone the repository:**
     ```bash
     git clone <repository_url>
@@ -41,6 +45,7 @@ The application is optimized for performance using an embedding cache and is rob
     ```
 
 ## Usage
+
 1.  **Populate your gallery**: Place your dataset of images (the photos you want to search within) into the `images/` directory.
 2.  **Run the Streamlit application:**
     ```bash
@@ -55,17 +60,21 @@ The application is optimized for performance using an embedding cache and is rob
 ## Screenshots
 
 ### Query Image
-*This is the image uploaded by the user to find matches.*
 
-![Query Image](path/to/your/query_image.png)
+_This is the image uploaded by the user to find matches._
+
+![Query Image](./useless_stuffs/query_image.png)
 
 ### Matching Results
-*Here are the results showing the matched faces in the gallery, with bounding boxes and similarity scores.*
 
-![Match 1](path/to/your/match_1.png)
-![Match 2](path/to/your/match_2.png)
+_Here are the results showing the matched faces in the gallery, with bounding boxes and similarity scores._
+
+![Match 1](./useless_stuffs/similar_1.png)
+![Match 2](./useless_stuffs/similar_2.png)
+![Match 3](./useless_stuffs/similar_3.png)
 
 ## Directory Structure
+
 ```
 .
 ├── .gitignore        # Specifies intentionally untracked files
@@ -78,4 +87,5 @@ The application is optimized for performance using an embedding cache and is rob
 ```
 
 ## Contributing
+
 Contributions are welcome! If you have suggestions for improvements or find any issues, please feel free to open an issue or submit a pull request.

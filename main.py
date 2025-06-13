@@ -1,25 +1,9 @@
 """
-Face Recognition App
+An advanced face recognition application using Streamlit.
 
-This is a face recognition application that uses MTCNN for face detection and DeepFace for face embedding. It allows users to upload an image and find similar faces from a local image dataset (a folder/gallery).
-
-Features:
-- Face detection using MTCNN
-- Face embedding using DeepFace with the Facenet model
-- Cosine similarity calculation between face embeddings
-- Search for similar faces in a local image dataset
-- Interactive web interface built with Streamlit
-
-Technologies Used:
-- Python 3.x
-- Streamlit
-- OpenCV (`opencv-python`)
-- MTCNN (`mtcnn`)
-- DeepFace (`deepface`)
-- NumPy (`numpy`)
-- TensorFlow (`tensorflow`)
-- Keras (`keras`)
-
+This script provides a web UI for uploading an image and finding matches
+in a local gallery. It features multi-face detection, embedding caching for
+performance, and visual feedback with bounding boxes on matched faces.
 """
 
 import cv2
@@ -40,10 +24,7 @@ class FaceRecognition:
         self.data = self.load_dataset()
 
     def extract_faces(self, image):
-        """
-        Extracts all faces from the given image using MTCNN.
-        Returns a list of dictionaries, each containing 'box' and 'face' for a detected face.
-        """
+        # Extracts all faces from an image using MTCNN.
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         detections = self.detector.detect_faces(image_rgb)
         faces = []
@@ -55,9 +36,7 @@ class FaceRecognition:
         return faces
 
     def get_embeddings(self, faces):
-        """
-        Generates face embeddings for a list of face images.
-        """
+        # Generates face embeddings for a list of face images.
         embeddings = []
         for face_info in faces:
             face = face_info['face'].astype('float32')
@@ -67,22 +46,19 @@ class FaceRecognition:
         return embeddings
 
     def load_from_cache(self):
-        """Loads face embeddings from a cache file."""
+        # Loads face embeddings from the cache file.
         if os.path.exists(self.cache_path):
             with open(self.cache_path, 'rb') as f:
                 return pickle.load(f)
         return {}
 
     def save_to_cache(self, data):
-        """Saves face embeddings to a cache file."""
+        # Saves face embeddings to the cache file.
         with open(self.cache_path, 'wb') as f:
             pickle.dump(data, f)
 
     def load_dataset(self):
-        """
-        Loads the dataset of images, using a cache to speed up the process.
-        Processes only new or modified images.
-        """
+        # Loads image dataset, using cache to process only new or modified files.
         cached_data = self.load_from_cache()
         current_data = {}
         updated = False
@@ -126,17 +102,13 @@ class FaceRecognition:
         return current_data
 
     def check_similarity(self, emb1, emb2):
-        """Calculates the cosine similarity between two face embeddings."""
+        # Calculates cosine similarity between two face embeddings.
         emb1 = emb1.flatten()
         emb2 = emb2.flatten()
         return np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2))
 
     def search_similar_faces(self, query_image_path, threshold=0.5):
-        """
-        Searches for similar faces in the dataset.
-        Returns a list of tuples: (image_path, list_of_matched_faces)
-        Each matched face is a dict: {'box': (x,y,w,h), 'score': similarity_score}
-        """
+        # Searches the dataset for faces similar to the query image.
         query_image = cv2.imread(query_image_path)
         if query_image is None:
             st.error("Could not read query image.")

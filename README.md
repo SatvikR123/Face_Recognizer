@@ -1,14 +1,16 @@
-# Face Recognition Project
+# Advanced Face Recognition Project
 
 ## Description
-This project is a Python application that performs face recognition using a Streamlit web interface. It allows users to upload an image and find similar faces from a local image dataset (a folder/gallery).
+This project is an advanced face recognition application built with Python and Streamlit. It provides a user-friendly web interface to upload a query image and find all matching individuals within a local photo gallery.
 
-## Features
--   Detects faces in images using MTCNN.
--   Generates face embeddings using the DeepFace library with the Facenet model.
--   Calculates cosine similarity between face embeddings to find matches.
--   Searches a directory of images for faces similar to a user-uploaded query image.
--   Provides an interactive web interface built with Streamlit to upload images and view results.
+The application is optimized for performance using an embedding cache and is robust enough to handle images containing multiple people, drawing bounding boxes around each detected match.
+
+## Key Features
+-   **Multiple Face Detection**: Utilizes MTCNN to accurately detect all faces within an image, not just the first one.
+-   **High-Performance Caching**: Implements an intelligent caching system (`embeddings.pkl`) that saves face embeddings. The app only processes new or modified images, making startup and subsequent searches significantly faster.
+-   **Accurate Face Matching**: Generates face embeddings using the DeepFace library (with the Facenet model) and calculates cosine similarity to find matches.
+-   **Interactive Web UI**: A clean and simple interface built with Streamlit allows for easy image uploads, threshold adjustments, and clear presentation of results.
+-   **Rich Visual Feedback**: For each match found, the application draws a bounding box around the person's face and displays the similarity score directly on the image.
 
 ## Technologies Used
 -   Python 3.x
@@ -20,6 +22,7 @@ This project is a Python application that performs face recognition using a Stre
 -   Pillow (`pillow`)
 -   TensorFlow (`tensorflow`)
 -   Keras (`keras`)
+-   Pickle (for caching)
 
 ## Setup and Installation
 1.  **Clone the repository:**
@@ -38,16 +41,16 @@ This project is a Python application that performs face recognition using a Stre
     ```
 
 ## Usage
-1.  **Place your dataset images** (the images you want to search within) into the `images/` directory.
+1.  **Populate your gallery**: Place your dataset of images (the photos you want to search within) into the `images/` directory.
 2.  **Run the Streamlit application:**
     ```bash
     streamlit run main.py
     ```
-3.  **Open the web interface:** Your browser should open a new tab with the application running. If not, navigate to the local URL provided in your terminal (usually `http://localhost:8501`).
-4.  **Upload an image:** Use the file uploader to select a query image from your computer.
-5.  **Adjust the threshold:** Use the slider to set the desired similarity threshold.
-6.  **Search for faces:** Click the "Search for similar faces" button to start the search.
-7.  **View results:** The application will display the matching images from your `images` directory along with their similarity scores.
+3.  **First Run & Caching**: The first time you run the app, it will process all images in the `images` folder and create an `embeddings.pkl` cache file. This might take a moment. Subsequent runs will be much faster.
+4.  **Open the web interface**: Your browser should open a new tab with the application. If not, navigate to the local URL provided in your terminal (usually `http://localhost:8501`).
+5.  **Upload an image**: Use the file uploader to select a query image.
+6.  **Search for faces**: Click the "Search for Similar Faces" button.
+7.  **View results**: The application will display any images containing a match, with a green box drawn around the matched faces and their similarity scores.
 
 ## Directory Structure
 ```
@@ -57,6 +60,7 @@ This project is a Python application that performs face recognition using a Stre
 │   └── ... (place your images here)
 ├── main.py           # The main script with the Streamlit application
 ├── requirements.txt  # A list of Python dependencies
+├── embeddings.pkl    # Cache file for face embeddings (auto-generated)
 └── README.md         # This file
 ```
 

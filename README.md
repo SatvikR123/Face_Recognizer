@@ -1,31 +1,39 @@
-# Advanced Face Recognition Project
+# Local Photo Manager & Face Recognition
 
 ## Description
 
-This project is an advanced face recognition application built with Python and Streamlit. It provides a user-friendly web interface to upload a query image and find all matching individuals within a local photo gallery.
+This project is an advanced, local photo management application built with Python and Streamlit. It provides a user-friendly web interface to organize and search your photo collection in two powerful ways:
 
-The application is optimized for performance using an embedding cache and is robust enough to handle images containing multiple people, drawing bounding boxes around each detected match.
+1.  **Face Recognition**: Upload a query image to find all matching individuals within your photo gallery.
+2.  **Location Clustering**: Automatically groups your photos into albums based on where they were taken, using GPS data from image EXIF tags and the Google Maps API.
+
+The application is optimized for performance using an embedding cache and is robust enough to handle images containing multiple people.
 
 ## Key Features
 
-- **Multiple Face Detection**: Utilizes MTCNN to accurately detect all faces within an image, not just the first one.
-- **High-Performance Caching**: Implements an intelligent caching system (`embeddings.pkl`) that saves face embeddings. The app only processes new or modified images, making startup and subsequent searches significantly faster.
-- **Accurate Face Matching**: Generates face embeddings using the DeepFace library (with the Facenet model) and calculates cosine similarity to find matches.
-- **Interactive Web UI**: A clean and simple interface built with Streamlit allows for easy image uploads, threshold adjustments, and clear presentation of results.
-- **Rich Visual Feedback**: For each match found, the application draws a bounding box around the person's face and displays the similarity score directly on the image.
+- **Intelligent Face Search**:
+  - Utilizes MTCNN to accurately detect all faces within an image.
+  - Generates face embeddings using the DeepFace library (with the Facenet model).
+  - Finds matches based on cosine similarity with a user-adjustable threshold.
+- **Automatic Location Clustering**:
+  - Extracts GPS coordinates from image EXIF data.
+  - Uses the Google Maps API to get rich, human-readable location names (e.g., "Paschim Vihar, Delhi").
+  - Groups photos into albums based on their location, making it easy to browse memories from specific places.
+- **High-Performance Caching**: Implements an intelligent caching system for face embeddings. The app only processes new or modified images, making subsequent searches significantly faster.
+- **Interactive Web UI**: A clean and simple interface built with Streamlit allows for easy image uploads, gallery management, and clear presentation of results.
+- **Rich Visual Feedback**: For each face match found, the application draws a bounding box around the person's face and displays the similarity score.
 
 ## Technologies Used
 
 - Python 3.x
 - Streamlit
+- Google Maps API (`googlemaps`)
+- Dotenv (`python-dotenv`)
 - OpenCV (`opencv-python`)
 - MTCNN (`mtcnn`)
 - DeepFace (`deepface`)
 - NumPy (`numpy`)
 - Pillow (`pillow`)
-- TensorFlow (`tensorflow`)
-- Keras (`keras`)
-- Pickle (for caching)
 
 ## Setup and Installation
 
@@ -43,6 +51,13 @@ The application is optimized for performance using an embedding cache and is rob
     ```bash
     pip install -r requirements.txt
     ```
+4.  **Set up your Google Maps API Key:**
+    - Create a file named `.env` in the project root.
+    - Add your Google Maps API key to this file:
+      ```
+      GOOGLE_MAPS_API_KEY="YOUR_API_KEY_HERE"
+      ```
+    - **Note**: The `.env` file is included in `.gitignore` to keep your API key private.
 
 ## Usage
 
@@ -51,41 +66,31 @@ The application is optimized for performance using an embedding cache and is rob
     ```bash
     streamlit run main.py
     ```
-3.  **First Run & Caching**: The first time you run the app, it will process all images in the `images` folder and create an `embeddings.pkl` cache file. This might take a moment. Subsequent runs will be much faster.
-4.  **Open the web interface**: Your browser should open a new tab with the application. If not, navigate to the local URL provided in your terminal (usually `http://localhost:8501`).
-5.  **Upload an image**: Use the file uploader to select a query image.
-6.  **Search for faces**: Click the "Search for Similar Faces" button.
-7.  **View results**: The application will display any images containing a match, with a green box drawn around the matched faces and their similarity scores.
+3.  **Index your gallery**:
+    - The application will automatically index your photos on first run.
+    - You can click **"Force Re-index"** in the sidebar at any time to re-process all images. This is necessary after adding new photos or to apply new features like location naming.
+4.  **Search by Face**:
+    - Upload a photo of a person in the sidebar.
+    - Adjust the similarity threshold if needed.
+    - The application will display all matching photos from your gallery.
+5.  **Browse by Location**:
+    - Click the **"Cluster Photos"** button in the sidebar.
+    - The application will generate albums based on location.
+    - Scroll down to see your photos neatly organized by where they were taken.
 
-## Screenshots
-
-### Query Image
-
-_This is the image uploaded by the user to find matches._
-
-![Query Image](sample/query.png)
-
-### Matching Results
-
-_Here are the results showing the matched faces in the gallery, with bounding boxes and similarity scores._
-
-![Match 1](sample/similar_1.png)
-![Match 2](sample/similar_2.png)
-![Match 3](sample/similar_3.png)
-
-## Directory Structure
+## Project Structure
 
 ```
 .
-├── .gitignore        # Specifies intentionally untracked files
-├── images/           # Directory to store your dataset of images
-│   └── ... (place your images here)
-├── main.py           # The main script with the Streamlit application
-├── requirements.txt  # A list of Python dependencies
-├── embeddings.pkl    # Cache file for face embeddings (auto-generated)
-└── README.md         # This file
-```
+├── images/             # Directory to store your photo gallery (ignored by Git)
+├── .env                # Stores your Google Maps API key (ignored by Git)
+├── .gitignore          # Specifies files and directories to be ignored by Git
+├── main.py             # Main Streamlit application file
+├── photo_manager.py    # Core logic for face recognition and photo management
+├── requirements.txt    # A list of Python dependencies
+└── README.md           # This file
 
 ## Contributing
 
-Contributions are welcome! If you have suggestions for improvements or find any issues, please feel free to open an issue or submit a pull request.
+Contributions are welcome! Please feel free to submit a pull request or open an issue if you have any suggestions or find any bugs.
+```

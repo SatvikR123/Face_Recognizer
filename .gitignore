@@ -1,1 +1,15 @@
-venv
+# Python virtual environment
+venv/
+
+# Local data and secrets
+images/
+gallery.db
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Test files
+test.py
+test2.py

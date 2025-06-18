@@ -4,7 +4,9 @@ DeepFace
 matplotlib
 numpy
 pillow
-matplotlib
 tensorflow
 keras
 streamlit
+googlemaps
+python-dotenv
+scikit-learn

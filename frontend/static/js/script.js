@@ -100,7 +100,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (face.person_name) {
                         const nameTag = document.createElement('div');
                         nameTag.className = 'face-tag';
-                        nameTag.textContent = face.person_name;
+                        
+                        const nameSpan = document.createElement('span');
+                        nameSpan.textContent = face.person_name;
+                        
+                        const deleteBtn = document.createElement('span');
+                        deleteBtn.className = 'delete-face-name';
+                        deleteBtn.innerHTML = '&times;';
+                        deleteBtn.title = 'Unassign Name';
+                        deleteBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            unassignNameFromFace(face.id, faceBox);
+                        };
+                        
+                        nameTag.appendChild(nameSpan);
+                        nameTag.appendChild(deleteBtn);
                         faceBox.appendChild(nameTag);
                     } else {
                         faceBox.title = 'Click to tag this face';
@@ -140,28 +154,78 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ face_id: faceId, name: name })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    throw new Error(`HTTP error! Status: ${response.status}, Body: ${text}`);
+                });
+            }
+            return response.json();
+        })
         .then(result => {
             if (result.status === 'success') {
-                faceBox.innerHTML = '';
+                faceBox.innerHTML = ''; // Clear the input form
                 const nameTag = document.createElement('div');
                 nameTag.className = 'face-tag';
-                nameTag.textContent = name;
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = name;
+
+                const deleteBtn = document.createElement('span');
+                deleteBtn.className = 'delete-face-name';
+                deleteBtn.innerHTML = '&times;';
+                deleteBtn.title = 'Unassign Name';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    unassignNameFromFace(faceId, faceBox);
+                };
+
+                nameTag.appendChild(nameSpan);
+                nameTag.appendChild(deleteBtn);
                 faceBox.appendChild(nameTag);
                 faceBox.title = name;
                 loadPersonNames();
             } else {
-                alert('Failed to save name: ' + (result.error || 'Unknown error'));
-                showTagInput(faceBox, faceId); // Re-show input on failure
+                alert('Failed to save name: ' + (result.error || 'Unknown error from server'));
+                showTagInput(faceBox, faceId);
             }
         })
-        .catch(error => console.error('Error assigning name:', error));
+        .catch(error => {
+            console.error('Error assigning name:', error);
+            alert('Failed to save name. See browser console for details. Error: ' + error.message);
+            showTagInput(faceBox, faceId);
+        });
+    }
+
+    function unassignNameFromFace(faceId, faceBox) {
+        if (!confirm('Are you sure you want to remove this name?')) {
+            return;
+        }
+        fetch('/api/unassign_face_name', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ face_id: faceId })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                faceBox.innerHTML = ''; // Clear the name tag
+                faceBox.title = 'Click to tag this face';
+                // Re-add the click listener to allow tagging again
+                faceBox.addEventListener('click', () => showTagInput(faceBox, faceId), { once: true });
+            } else {
+                alert('Failed to unassign name: ' + (result.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error unassigning name:', error);
+            alert('An error occurred while unassigning the name. Please check the console.');
+        });
     }
 
     function closeModal() {
         modal.style.display = 'none';
         faceBoxContainer.innerHTML = '';
-        // Reset container style to default
         faceBoxContainer.style.top = '0';
         faceBoxContainer.style.left = '0';
         faceBoxContainer.style.width = '100%';

@@ -178,16 +178,29 @@ header h1 {
 
 .face-tag {
     position: absolute;
-    bottom: -25px;
+    bottom: -25px; /* Position below the box */
     left: 50%;
     transform: translateX(-50%);
-    background-color: #007BFF;
+    background-color: rgba(0, 0, 0, 0.7);
     color: white;
-    padding: 3px 6px;
-    border-radius: 4px;
+    padding: 3px 8px;
+    border-radius: 3px;
     font-size: 12px;
     white-space: nowrap;
-    text-align: center;
+    pointer-events: all; /* Allow clicks on the tag */
+    display: flex;
+    align-items: center;
+}
+
+.delete-face-name {
+    margin-left: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #ffbaba;
+}
+
+.delete-face-name:hover {
+    color: #ff4d4d;
 }
 
 .tag-input-container {

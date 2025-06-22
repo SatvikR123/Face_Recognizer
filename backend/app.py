@@ -50,9 +50,9 @@ def upload_photos():
         photo_manager.index_gallery()
     except Exception as e:
         print(f"Error during gallery indexing: {e}")
-        return jsonify({'message': 'Upload successful, but failed to re-index gallery.'}), 500
+        return jsonify({'success': False, 'error': 'Upload successful, but failed to re-index gallery.'}), 500
 
-    return jsonify({'message': 'Upload successful, gallery has been updated.'}), 200
+    return jsonify({'success': True, 'message': 'Upload successful, gallery has been updated.'}), 200
 
 @app.route('/api/search_by_face', methods=['POST'])
 def search_by_face():
@@ -125,6 +125,7 @@ def get_photo_faces(photo_id):
 @app.route('/api/tag_face', methods=['POST'])
 def tag_face():
     data = request.json
+    print(f"[DEBUG] Received tag request data: {data}")
     face_id = data.get('face_id')
     name = data.get('name')
 
@@ -133,10 +134,27 @@ def tag_face():
 
     try:
         result = photo_manager.assign_name_to_face(face_id, name)
+        print(f"[DEBUG] Returning result for tag request: {result}")
         return jsonify(result)
     except Exception as e:
         print(f"Error tagging face: {e}")
         return jsonify({'error': 'Failed to tag face.'}), 500
+
+@app.route('/api/unassign_face_name', methods=['POST'])
+def unassign_face_name():
+    data = request.json
+    face_id = data.get('face_id')
+    if not face_id:
+        return jsonify({'error': 'face_id is required'}), 400
+    try:
+        result = photo_manager.unassign_name_from_face(face_id)
+        if result.get('status') == 'success':
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 404 # Or appropriate error code
+    except Exception as e:
+        print(f"Error unassigning name from face: {e}")
+        return jsonify({'error': 'Failed to unassign name.'}), 500
 
 if __name__ == '__main__':
     print("Starting server...")

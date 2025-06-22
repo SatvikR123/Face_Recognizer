@@ -197,23 +197,31 @@ class PhotoManager:
                 embeddings.append(np.array(embedding_list[0]['embedding'], dtype=np.float32))
         return embeddings
 
-    def index_gallery(self, force_reindex=False):
+    def index_gallery(self, force_reindex=False, recognition_threshold=0.7):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
+
+            # 1. Get all known faces with names for recognition
+            cursor.execute("SELECT person_id, embedding FROM faces WHERE person_id IS NOT NULL")
+            known_faces_raw = cursor.fetchall()
+            known_faces = [{
+                "person_id": person_id,
+                "embedding": np.frombuffer(embedding_blob, dtype=np.float32)
+            } for person_id, embedding_blob in known_faces_raw]
+            print(f"Loaded {len(known_faces)} known faces for recognition.")
+
             image_files = [f for f in os.listdir(self.gallery_path) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
 
             for filename in image_files:
                 filepath = os.path.join(self.gallery_path, filename)
                 mod_time = os.path.getmtime(filepath)
 
-                # Use filename as the unique key for checking existence
                 cursor.execute("SELECT id, mod_time, filepath FROM photos WHERE filename=?", (filename,))
                 result = cursor.fetchone()
 
                 photo_id = None
                 if result:
                     photo_id, db_mod_time, db_filepath = result
-                    # Skip if the file is unchanged and re-indexing is not forced
                     if not force_reindex and db_mod_time == mod_time and db_filepath == filepath:
                         continue
                     
@@ -223,13 +231,11 @@ class PhotoManager:
                     capture_date = datetime.strptime(capture_date_str, '%Y:%m:%d %H:%M:%S') if capture_date_str else None
                     lat, lon, loc_name = self._get_location_from_gps(exif_data)
 
-                    # Update existing record, including the filepath to fix relative/absolute path issues
                     cursor.execute("""
                         UPDATE photos 
                         SET filepath=?, capture_date=?, latitude=?, longitude=?, location_name=?, mod_time=?
                         WHERE id=?
                     """, (filepath, capture_date, lat, lon, loc_name, mod_time, photo_id))
-                    # Clear old face data for the photo
                     cursor.execute("DELETE FROM faces WHERE photo_id=?", (photo_id,))
                 else:
                     print(f"Indexing {filename}...")
@@ -244,7 +250,7 @@ class PhotoManager:
                     """, (filename, filepath, capture_date, lat, lon, loc_name, mod_time))
                     photo_id = cursor.lastrowid
 
-                # Extract and save face data for new or updated photos
+                # 2. Extract faces and try to recognize them
                 if photo_id:
                     faces = self._extract_faces(filepath)
                     if faces:
@@ -252,9 +258,28 @@ class PhotoManager:
                         for i, face_info in enumerate(faces):
                             if i < len(embeddings):
                                 x, y, w, h = face_info['box']
-                                embedding_blob = embeddings[i].tobytes()
-                                cursor.execute("INSERT INTO faces (photo_id, box_x, box_y, box_w, box_h, embedding) VALUES (?,?,?,?,?,?)",
-                                               (photo_id, x, y, w, h, embedding_blob))
+                                new_embedding = embeddings[i]
+                                embedding_blob = new_embedding.tobytes()
+                                
+                                # --- Auto-recognition logic ---
+                                best_match_person_id = None
+                                if known_faces:
+                                    best_match_score = 0.0
+                                    for known_face in known_faces:
+                                        similarity = self._check_similarity(new_embedding, known_face['embedding'])
+                                        if similarity > best_match_score:
+                                            best_match_score = similarity
+                                            if similarity >= recognition_threshold:
+                                                best_match_person_id = known_face['person_id']
+                                    
+                                    if best_match_person_id:
+                                        print(f"  -> Recognized person ID {best_match_person_id} for a face in {filename} (Score: {best_match_score:.2f})")
+
+                                # 3. Insert face with or without a person_id
+                                cursor.execute("""
+                                    INSERT INTO faces (photo_id, box_x, box_y, box_w, box_h, embedding, person_id) 
+                                    VALUES (?,?,?,?,?,?,?)
+                                """, (photo_id, x, y, w, h, embedding_blob, best_match_person_id))
             conn.commit()
         print("Gallery indexing complete.")
 
@@ -369,22 +394,7 @@ class PhotoManager:
             """, (photo_id,))
             return [dict(row) for row in cursor.fetchall()]
 
-    def assign_name_to_face(self, face_id, name):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            # Find person_id for the given name, or create a new person
-            cursor.execute("SELECT id FROM persons WHERE name = ?", (name,))
-            person_result = cursor.fetchone()
-            if person_result:
-                person_id = person_result[0]
-            else:
-                cursor.execute("INSERT INTO persons (name) VALUES (?)", (name,))
-                person_id = cursor.lastrowid
-            
-            # Update the face record with the person_id
-            cursor.execute("UPDATE faces SET person_id = ? WHERE id = ?", (person_id, face_id))
-            conn.commit()
-            return {"status": "success", "person_id": person_id}
+
 
     def _check_similarity(self, emb1, emb2):
         emb1 = emb1.flatten()
@@ -460,25 +470,25 @@ class PhotoManager:
         
         return output_matches
 
-    def assign_name_to_face(self, face_id, person_name, propagation_threshold=0.7):
+    def assign_name_to_face(self, face_id, name, propagation_threshold=0.7):
         """
         Assigns a name to a specific face and propagates that name to all other
         similar, unnamed faces in the database.
-        Returns the total number of faces updated (including the initial one).
+        Returns a dictionary with the status and person_id for the API.
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            person_name = person_name.strip()
-            if not person_name:
-                return 0
+            name = name.strip()
+            if not name:
+                return {"status": "error", "error": "Name cannot be empty."}
 
             # 1. Get or create the person
-            cursor.execute("SELECT id FROM persons WHERE name = ?", (person_name,))
+            cursor.execute("SELECT id FROM persons WHERE name = ?", (name,))
             person_result = cursor.fetchone()
             if person_result:
                 person_id = person_result[0]
             else:
-                cursor.execute("INSERT INTO persons (name) VALUES (?)", (person_name,))
+                cursor.execute("INSERT INTO persons (name) VALUES (?)", (name,))
                 person_id = cursor.lastrowid
             
             # 2. Update the primary face and get its embedding
@@ -486,11 +496,11 @@ class PhotoManager:
             cursor.execute("SELECT embedding FROM faces WHERE id = ?", (face_id,))
             target_embedding_blob = cursor.fetchone()
             if not target_embedding_blob:
-                return 0
+                return {"status": "error", "error": "Could not find the target face to start propagation."}
             
             target_embedding = np.frombuffer(target_embedding_blob[0], dtype=np.float32)
 
-            # 3. Find all other unnamed faces and compare
+            # 3. Find all other unnamed faces and compare to propagate the name
             cursor.execute("SELECT id, embedding FROM faces WHERE person_id IS NULL AND id != ?", (face_id,))
             unnamed_faces = cursor.fetchall()
             
@@ -505,7 +515,22 @@ class PhotoManager:
                     updated_count += 1
             
             conn.commit()
-            return updated_count
+            print(f"Assigned name '{name}' to face {face_id} and propagated to {updated_count - 1} other faces.")
+            return {"status": "success", "person_id": person_id}
+
+    def unassign_name_from_face(self, face_id):
+        """Removes the assigned person from a specific face."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # Set person_id to NULL to unassign the name
+            cursor.execute("UPDATE faces SET person_id = NULL WHERE id = ?", (face_id,))
+            conn.commit()
+            # Check if the update was successful
+            if cursor.rowcount > 0:
+                return {"status": "success", "message": f"Name unassigned from face {face_id}."}
+            else:
+                # This case might happen if the face_id is invalid
+                return {"status": "error", "error": f"Face with id {face_id} not found."}
 
     def get_all_persons(self):
         """Returns a list of all named persons in the database."""

@@ -92,7 +92,7 @@ The application uses a robust backend to handle image processing and a dynamic f
 │   └── app.py              # Flask application, API endpoints
 ├── frontend/
 │   ├── static/
-│   │   ├── css/
+│   │   ├── css/git 
 │   │   │   └── style.css   # Stylesheets
 │   │   ├── js/
 │   │   │   └── script.js   # Frontend JavaScript logic

@@ -61,41 +61,81 @@ def main():
         if not matches:
             st.write("No matches found.")
         else:
-            st.header(f"{len(matches)} matching photos found:")
-            for i, (filepath, data) in enumerate(matches):
-                st.subheader(f"Photo: {os.path.basename(filepath)}")
-                col1, col2 = st.columns([1, 2])
-                with col1:
-                    st.image(orient_image(filepath), use_column_width=True)
-                with col2:
-                    st.write(f"**Location:** {data.get('location', 'N/A')}")
-                    st.write(f"**Date:** {data.get('date', 'N/A')}")
-                    st.write(f"**Found {len(data['faces'])} matching faces:**")
-                    for j, face in enumerate(data['faces']):
-                        unique_key = f"face_{i}_{j}"
-                        person_name = face.get('person_name', 'Unknown')
-                        score = face['score']
-                        st.write(f"- **Person:** {person_name} (Score: {score:.2f})")
-                        
-                        # UI for naming a person
-                        new_name = st.text_input("Name this person:", key=f"{unique_key}_name").strip()
-                        if st.button("Save Name", key=f"{unique_key}_save"):
-                            if new_name:
-                                updated_count = photo_manager.assign_name_to_face(face['face_id'], new_name)
-                                if updated_count > 1:
-                                    st.success(f"Saved name '{new_name}' and applied it to {updated_count - 1} other similar faces.")
+            st.header(f"{len(matches)} matching photos found.")
+
+            # Extract all unique person names from the matches to create a selection list
+            all_person_names = set()
+            for _, data in matches:
+                for face in data['faces']:
+                    all_person_names.add(face.get('person_name', 'Unknown'))
+            
+            sorted_names = sorted(list(all_person_names))
+
+            # Let the user select a person to view
+            selected_person = st.selectbox(
+                "Select a person to see their photos",
+                options=sorted_names,
+                index=None,
+                placeholder="Choose a person to display their photos"
+            )
+
+            # If a person is selected, filter and display their photos
+            if selected_person:
+                st.header(f"Showing photos of: {selected_person}")
+
+                # Filter matches for the selected person
+                photos_to_display = []
+                seen_filepaths = set()
+                for filepath, data in matches:
+                    if any(face.get('person_name', 'Unknown') == selected_person for face in data['faces']):
+                        if filepath not in seen_filepaths:
+                            photos_to_display.append((filepath, data))
+                            seen_filepaths.add(filepath)
+
+                if not photos_to_display:
+                    st.warning(f"No photos found for {selected_person}, this might be a data inconsistency.")
+                else:
+                    # Display the filtered photos and the naming UI
+                    for i, (filepath, data) in enumerate(photos_to_display):
+                        st.subheader(f"Photo: {os.path.basename(filepath)}")
+                        col1, col2 = st.columns([1, 2])
+                        with col1:
+                            st.image(orient_image(filepath), use_column_width=True)
+                        with col2:
+                            st.write(f"**Location:** {data.get('location', 'N/A')}")
+                            st.write(f"**Date:** {data.get('date', 'N/A')}")
+                            st.write(f"**Found {len(data['faces'])} matching faces:**")
+                            for j, face in enumerate(data['faces']):
+                                # Use a more robust unique key to prevent widget state conflicts
+                                unique_key = f"face_{filepath.replace('/', '_')}_{i}_{j}"
+                                person_name = face.get('person_name', 'Unknown')
+                                score = face['score']
+                                
+                                # Highlight the selected person in the list of faces
+                                if person_name == selected_person:
+                                    st.write(f" - **Person: {person_name} (Score: {score:.2f})**")
                                 else:
-                                    st.success(f"Saved name '{new_name}' for this face.")
+                                    st.write(f" - Person: {person_name} (Score: {score:.2f})")
                                 
-                                # Force a refresh of the person list in the session state
-                                if 'persons_list' in st.session_state:
-                                    del st.session_state.persons_list
-                                
-                                import time
-                                time.sleep(1) # Give user time to read the message
-                                st.rerun()
-                            else:
-                                st.warning("Please enter a name before saving.")
+                                # UI for naming or renaming a person
+                                new_name = st.text_input("Name this person:", key=f"{unique_key}_name").strip()
+                                if st.button("Save Name", key=f"{unique_key}_save"):
+                                    if new_name:
+                                        updated_count = photo_manager.assign_name_to_face(face['face_id'], new_name)
+                                        if updated_count > 1:
+                                            st.success(f"Saved name '{new_name}' and applied it to {updated_count - 1} other similar faces.")
+                                        else:
+                                            st.success(f"Saved name '{new_name}' for this face.")
+                                        
+                                        # Refresh person list and rerun to reflect changes
+                                        if 'persons_list' in st.session_state:
+                                            del st.session_state.persons_list
+                                        
+                                        import time
+                                        time.sleep(1)
+                                        st.rerun()
+                                    else:
+                                        st.warning("Please enter a name before saving.")
 
         # Clean up the uploaded file
         os.remove(query_image_path)
@@ -121,6 +161,8 @@ def main():
         selected_person_name = st.sidebar.selectbox(
             "Select a person",
             options=person_names,
+            index=None,
+            placeholder="Select a person...",
             key='person_select_stable' # Stable key to prevent widget state issues
         )
 

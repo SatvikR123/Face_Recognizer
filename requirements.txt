@@ -7,6 +7,7 @@ pillow
 tensorflow
 keras
 streamlit
+Flask
 googlemaps
 python-dotenv
 scikit-learn

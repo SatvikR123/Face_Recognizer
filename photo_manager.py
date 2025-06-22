@@ -206,44 +206,55 @@ class PhotoManager:
                 filepath = os.path.join(self.gallery_path, filename)
                 mod_time = os.path.getmtime(filepath)
 
-                cursor.execute("SELECT mod_time FROM photos WHERE filepath=?", (filepath,))
+                # Use filename as the unique key for checking existence
+                cursor.execute("SELECT id, mod_time, filepath FROM photos WHERE filename=?", (filename,))
                 result = cursor.fetchone()
 
-                if not force_reindex and result and result[0] == mod_time:
-                    continue
+                photo_id = None
+                if result:
+                    photo_id, db_mod_time, db_filepath = result
+                    # Skip if the file is unchanged and re-indexing is not forced
+                    if not force_reindex and db_mod_time == mod_time and db_filepath == filepath:
+                        continue
+                    
+                    print(f"Updating {filename}...")
+                    exif_data = self._get_exif_data(filepath)
+                    capture_date_str = exif_data.get('DateTimeOriginal')
+                    capture_date = datetime.strptime(capture_date_str, '%Y:%m:%d %H:%M:%S') if capture_date_str else None
+                    lat, lon, loc_name = self._get_location_from_gps(exif_data)
 
-                print(f"Indexing {filename}...")
-                exif_data = self._get_exif_data(filepath)
-                capture_date_str = exif_data.get('DateTimeOriginal')
-                capture_date = datetime.strptime(capture_date_str, '%Y:%m:%d %H:%M:%S') if capture_date_str else None
-                lat, lon, loc_name = self._get_location_from_gps(exif_data)
-
-                cursor.execute("SELECT id FROM photos WHERE filepath=?", (filepath,))
-                photo_result = cursor.fetchone()
-                if photo_result:
-                    photo_id = photo_result[0]
+                    # Update existing record, including the filepath to fix relative/absolute path issues
                     cursor.execute("""
                         UPDATE photos 
-                        SET capture_date=?, latitude=?, longitude=?, location_name=?, mod_time=?
+                        SET filepath=?, capture_date=?, latitude=?, longitude=?, location_name=?, mod_time=?
                         WHERE id=?
-                    """, (capture_date, lat, lon, loc_name, mod_time, photo_id))
+                    """, (filepath, capture_date, lat, lon, loc_name, mod_time, photo_id))
+                    # Clear old face data for the photo
                     cursor.execute("DELETE FROM faces WHERE photo_id=?", (photo_id,))
                 else:
+                    print(f"Indexing {filename}...")
+                    exif_data = self._get_exif_data(filepath)
+                    capture_date_str = exif_data.get('DateTimeOriginal')
+                    capture_date = datetime.strptime(capture_date_str, '%Y:%m:%d %H:%M:%S') if capture_date_str else None
+                    lat, lon, loc_name = self._get_location_from_gps(exif_data)
+
                     cursor.execute("""
                         INSERT INTO photos (filename, filepath, capture_date, latitude, longitude, location_name, mod_time) 
                         VALUES (?,?,?,?,?,?,?)
                     """, (filename, filepath, capture_date, lat, lon, loc_name, mod_time))
                     photo_id = cursor.lastrowid
 
-                faces = self._extract_faces(filepath)
-                if faces:
-                    embeddings = self._get_embeddings(faces)
-                    for i, face_info in enumerate(faces):
-                        if i < len(embeddings):
-                            x, y, w, h = face_info['box']
-                            embedding_blob = embeddings[i].tobytes()
-                            cursor.execute("INSERT INTO faces (photo_id, box_x, box_y, box_w, box_h, embedding) VALUES (?,?,?,?,?,?)",
-                                           (photo_id, x, y, w, h, embedding_blob))
+                # Extract and save face data for new or updated photos
+                if photo_id:
+                    faces = self._extract_faces(filepath)
+                    if faces:
+                        embeddings = self._get_embeddings(faces)
+                        for i, face_info in enumerate(faces):
+                            if i < len(embeddings):
+                                x, y, w, h = face_info['box']
+                                embedding_blob = embeddings[i].tobytes()
+                                cursor.execute("INSERT INTO faces (photo_id, box_x, box_y, box_w, box_h, embedding) VALUES (?,?,?,?,?,?)",
+                                               (photo_id, x, y, w, h, embedding_blob))
             conn.commit()
         print("Gallery indexing complete.")
 
@@ -325,12 +336,55 @@ class PhotoManager:
             cursor.execute("SELECT * FROM photos ORDER BY capture_date DESC")
             return [dict(row) for row in cursor.fetchall()]
 
+    def get_all_person_names(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM persons ORDER BY name")
+            return [row[0] for row in cursor.fetchall()]
+
+    def search_by_person_name(self, name):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT p.*
+                FROM photos p
+                JOIN faces f ON p.id = f.photo_id
+                JOIN persons pers ON f.person_id = pers.id
+                WHERE pers.name = ?
+                GROUP BY p.id
+                ORDER BY p.capture_date DESC
+            """, (name,))
+            return [dict(row) for row in cursor.fetchall()]
+
     def get_faces_for_photo(self, photo_id):
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM faces WHERE photo_id=?", (photo_id,))
+            cursor.execute("""
+                SELECT f.id, f.box_x, f.box_y, f.box_w, f.box_h, p.name as person_name
+                FROM faces f
+                LEFT JOIN persons p ON f.person_id = p.id
+                WHERE f.photo_id = ?
+            """, (photo_id,))
             return [dict(row) for row in cursor.fetchall()]
+
+    def assign_name_to_face(self, face_id, name):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # Find person_id for the given name, or create a new person
+            cursor.execute("SELECT id FROM persons WHERE name = ?", (name,))
+            person_result = cursor.fetchone()
+            if person_result:
+                person_id = person_result[0]
+            else:
+                cursor.execute("INSERT INTO persons (name) VALUES (?)", (name,))
+                person_id = cursor.lastrowid
+            
+            # Update the face record with the person_id
+            cursor.execute("UPDATE faces SET person_id = ? WHERE id = ?", (person_id, face_id))
+            conn.commit()
+            return {"status": "success", "person_id": person_id}
 
     def _check_similarity(self, emb1, emb2):
         emb1 = emb1.flatten()

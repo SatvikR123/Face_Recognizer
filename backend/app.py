@@ -1,0 +1,143 @@
+import sys
+import os
+import tempfile
+from flask import Flask, jsonify, request, send_from_directory
+
+# Add the project root to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from photo_manager import PhotoManager
+
+app = Flask(__name__, static_folder='../frontend/static', template_folder='../frontend/templates')
+
+# Define paths
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+GALLERY_FOLDER = os.path.join(PROJECT_ROOT, 'images')
+TEMP_FOLDER = os.path.join(PROJECT_ROOT, 'temp')
+os.makedirs(TEMP_FOLDER, exist_ok=True)
+
+# Initialize PhotoManager
+photo_manager = PhotoManager(gallery_path=GALLERY_FOLDER)
+
+@app.route('/')
+def index():
+    return send_from_directory(app.template_folder, 'index.html')
+
+@app.route('/images/<path:filename>')
+def serve_image(filename):
+    return send_from_directory(GALLERY_FOLDER, filename)
+
+@app.route('/api/photos')
+def get_photos():
+    photos_data = photo_manager.get_all_photos()
+    for photo in photos_data:
+        photo['url'] = f'/images/{photo["filename"]}'
+    return jsonify(photos_data)
+
+@app.route('/api/upload', methods=['POST'])
+def upload_photos():
+    if 'images' not in request.files:
+        return jsonify({'error': 'No images part in the request'}), 400
+    files = request.files.getlist('images')
+    if not files or all(f.filename == '' for f in files):
+        return jsonify({'error': 'No selected files'}), 400
+
+    for file in files:
+        if file:
+            file.save(os.path.join(GALLERY_FOLDER, file.filename))
+
+    try:
+        photo_manager.index_gallery()
+    except Exception as e:
+        print(f"Error during gallery indexing: {e}")
+        return jsonify({'message': 'Upload successful, but failed to re-index gallery.'}), 500
+
+    return jsonify({'message': 'Upload successful, gallery has been updated.'}), 200
+
+@app.route('/api/search_by_face', methods=['POST'])
+def search_by_face():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image for search in the request'}), 400
+    
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file for search'}), 400
+
+    # Save to a temporary file
+    temp_path = os.path.join(TEMP_FOLDER, file.filename)
+    file.save(temp_path)
+
+    try:
+        matches = photo_manager.search_by_face(temp_path)
+        
+        # Format results for the frontend
+        results = []
+        for filepath, data in matches:
+            filename = os.path.basename(filepath)
+            results.append({
+                'filename': filename,
+                'url': f'/images/{filename}',
+                'location_name': data.get('location'),
+                'capture_date': data.get('date')
+            })
+        return jsonify(results)
+    except Exception as e:
+        print(f"Error during face search: {e}")
+        return jsonify({'error': 'Failed to perform face search.'}), 500
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+@app.route('/api/persons')
+def get_persons():
+    try:
+        names = photo_manager.get_all_person_names()
+        return jsonify(names)
+    except Exception as e:
+        print(f"Error getting person names: {e}")
+        return jsonify({'error': 'Failed to retrieve person names.'}), 500
+
+@app.route('/api/search_by_name')
+def search_by_name():
+    name = request.args.get('name')
+    if not name:
+        return jsonify({'error': 'Name parameter is required'}), 400
+    
+    try:
+        photos_data = photo_manager.search_by_person_name(name)
+        for photo in photos_data:
+            photo['url'] = f'/images/{photo["filename"]}'
+        return jsonify(photos_data)
+    except Exception as e:
+        print(f"Error during search by name: {e}")
+        return jsonify({'error': 'Failed to perform search by name.'}), 500
+
+@app.route('/api/photo/<int:photo_id>/faces')
+def get_photo_faces(photo_id):
+    try:
+        faces = photo_manager.get_faces_for_photo(photo_id)
+        return jsonify(faces)
+    except Exception as e:
+        print(f"Error getting faces for photo {photo_id}: {e}")
+        return jsonify({'error': 'Failed to retrieve face data.'}), 500
+
+@app.route('/api/tag_face', methods=['POST'])
+def tag_face():
+    data = request.json
+    face_id = data.get('face_id')
+    name = data.get('name')
+
+    if not face_id or not name:
+        return jsonify({'error': 'face_id and name are required'}), 400
+
+    try:
+        result = photo_manager.assign_name_to_face(face_id, name)
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error tagging face: {e}")
+        return jsonify({'error': 'Failed to tag face.'}), 500
+
+if __name__ == '__main__':
+    print("Starting server...")
+    app.run(debug=True, port=5001)

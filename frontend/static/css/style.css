@@ -1,0 +1,243 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    background-color: #121212; /* Dark background */
+    color: #E0E0E0; /* Light text */
+}
+
+header {
+    background-color: #1E1E1E; /* Slightly lighter dark shade for header */
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #333; /* Subtle border */
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+header h1 {
+    margin: 0;
+    color: #FFFFFF;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* Hide default file inputs */
+.upload-container input[type="file"],
+.search-container input[type="file"] {
+    display: none;
+}
+
+/* Name search bar styles */
+.name-search-container {
+    display: flex;
+}
+
+#name-search-input {
+    border: 1px solid #444;
+    background-color: #2C2C2C;
+    color: #E0E0E0;
+    padding: 0.5rem;
+    border-radius: 6px 0 0 6px;
+    border-right: none;
+}
+
+#name-search-input:focus {
+    outline: none;
+    border-color: #007BFF;
+}
+
+/* General button styles */
+.upload-btn, .search-btn, .clear-btn {
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    border: none;
+    transition: background-color 0.3s ease;
+}
+
+#name-search-btn {
+    border-radius: 0 6px 6px 0;
+}
+
+/* Vibrant button colors */
+.upload-btn {
+    background-color: #007BFF; /* Vibrant Blue */
+}
+
+.upload-btn:hover {
+    background-color: #0056b3;
+}
+
+.search-btn {
+    background-color: #17A2B8; /* Vibrant Teal */
+}
+
+.search-btn:hover {
+    background-color: #117a8b;
+}
+
+.clear-btn {
+    background-color: #DC3545; /* Vibrant Red */
+}
+
+.clear-btn:hover {
+    background-color: #c82333;
+}
+
+/* Photo grid styles */
+#photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+    padding: 2rem;
+}
+
+.photo-item {
+    width: 100%;
+    padding-bottom: 100%; /* 1:1 Aspect Ratio */
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    background-color: #2C2C2C; /* Dark placeholder color */
+    transition: transform 0.3s ease;
+}
+
+.photo-item:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 20px rgba(0, 123, 255, 0.25);
+}
+
+.photo-item img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.95); /* Deeper transparency */
+}
+
+.modal-image-container {
+    position: relative;
+    margin: auto;
+    display: flex; /* Use flex to center the image */
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+
+.modal-content {
+    display: block;
+    max-width: 90%;
+    max-height: 90%;
+}
+
+#face-box-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Allow clicks to pass through to the image */
+}
+
+.face-box {
+    position: absolute;
+    border: 2px solid #007BFF;
+    box-sizing: border-box;
+    cursor: pointer;
+    pointer-events: all; /* Make face boxes clickable */
+    transition: background-color 0.2s;
+}
+
+.face-box:hover {
+    background-color: rgba(0, 123, 255, 0.25);
+}
+
+.face-tag {
+    position: absolute;
+    bottom: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #007BFF;
+    color: white;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.tag-input-container {
+    position: absolute;
+    display: flex;
+    z-index: 10;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.tag-input {
+    border: 1px solid #007BFF;
+    background-color: #1E1E1E;
+    color: #E0E0E0;
+    padding: 5px;
+    font-size: 12px;
+    width: 100px;
+}
+
+.tag-save-btn {
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    padding: 5px 8px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+#modal-caption {
+    text-align: center;
+    color: #ccc;
+    padding: 15px 0;
+    font-size: 1.2rem;
+}
+
+.close-btn {
+    position: absolute;
+    top: 20px;
+    right: 35px;
+    color: #f1f1f1;
+    font-size: 40px;
+    font-weight: bold;
+    transition: 0.3s;
+    z-index: 1001; /* Ensure it's above the image */
+    cursor: pointer;
+}
+
+.close-btn:hover,
+.close-btn:focus {
+    color: #007BFF;
+    text-decoration: none;
+}

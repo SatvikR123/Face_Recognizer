@@ -1,5 +1,6 @@
 # Python virtual environment
 venv/
+temp/
 
 # Local data and secrets
 images/

@@ -111,4 +111,3 @@ The application uses a robust backend to handle image processing and a dynamic f
 
 Contributions are welcome! Please feel free to submit a pull request or open an issue if you have any suggestions or find any bugs.
 
-```

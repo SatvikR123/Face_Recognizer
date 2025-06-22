@@ -45,14 +45,29 @@ class PhotoManager:
             )
             ''')
             cursor.execute('''
-            CREATE TABLE IF NOT EXISTS faces (
+            CREATE TABLE IF NOT EXISTS persons (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                photo_id INTEGER,
-                box_x INTEGER, box_y INTEGER, box_w INTEGER, box_h INTEGER,
-                embedding BLOB,
-                FOREIGN KEY(photo_id) REFERENCES photos(id)
+                name TEXT NOT NULL UNIQUE
             )
             ''')
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='faces'")
+            if cursor.fetchone() is None:
+                cursor.execute('''
+                CREATE TABLE faces (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    photo_id INTEGER,
+                    person_id INTEGER,
+                    box_x INTEGER, box_y INTEGER, box_w INTEGER, box_h INTEGER,
+                    embedding BLOB,
+                    FOREIGN KEY(photo_id) REFERENCES photos(id) ON DELETE CASCADE,
+                    FOREIGN KEY(person_id) REFERENCES persons(id) ON DELETE SET NULL
+                )
+                ''')
+            else:
+                cursor.execute("PRAGMA table_info(faces)")
+                columns = [info[1] for info in cursor.fetchall()]
+                if 'person_id' not in columns:
+                    cursor.execute("ALTER TABLE faces ADD COLUMN person_id INTEGER REFERENCES persons(id) ON DELETE SET NULL")
             conn.commit()
 
     def _dms_to_decimal(self, dms, ref):
@@ -115,24 +130,17 @@ class PhotoManager:
         try:
             reverse_geocode_result = self.gmaps.reverse_geocode((latitude, longitude))
             if reverse_geocode_result:
-                # Use the new method to get a friendlier name
                 location_name = self._extract_friendly_location_name(reverse_geocode_result)
                 return latitude, longitude, location_name
         except Exception as e:
             print(f"Google Maps reverse geocoding failed for ({latitude}, {longitude}): {e}")
             
-        # Return coordinates even if name lookup fails
         return latitude, longitude, None
 
     def _extract_friendly_location_name(self, geocode_results):
-        """
-        Extracts a descriptive and unambiguous location name from geocode results.
-        For example: "Sector 38, Noida" or "Paschim Vihar, Delhi".
-        """
         if not geocode_results:
             return None
 
-        # We will try to find the best available components from all results.
         best_components = {
             'neighborhood': None,
             'sublocality_level_1': None,
@@ -141,20 +149,17 @@ class PhotoManager:
             'country': None
         }
 
-        # Search through all results to populate our best components
         for result in geocode_results:
             for component in result.get('address_components', []):
                 for comp_type in best_components.keys():
                     if comp_type in component.get('types', []) and not best_components[comp_type]:
                         best_components[comp_type] = component['long_name']
 
-        # Now, construct the name based on what we found.
         specific_loc = best_components['neighborhood'] or best_components['sublocality_level_1']
         city = best_components['locality']
         state = best_components['administrative_area_level_1']
 
         if specific_loc and city:
-            # Avoid redundancy e.g. "Delhi, Delhi"
             if specific_loc != city:
                 return f"{specific_loc}, {city}"
             else:
@@ -166,7 +171,6 @@ class PhotoManager:
         if best_components['country']:
             return best_components['country']
 
-        # Fallback to the formatted address of the first result
         return geocode_results[0].get('formatted_address') if geocode_results else None
 
     def _extract_faces(self, image_path):
@@ -251,7 +255,6 @@ class PhotoManager:
             cursor.execute("SELECT id, capture_date, latitude, longitude FROM photos WHERE capture_date IS NOT NULL")
             photos_with_date = cursor.fetchall()
 
-            # Time Clustering
             if photos_with_date:
                 timestamps = np.array([datetime.strptime(p[1], '%Y-%m-%d %H:%M:%S').timestamp() for p in photos_with_date]).reshape(-1, 1)
                 time_eps_seconds = time_eps_hours * 3600
@@ -261,15 +264,12 @@ class PhotoManager:
                     cluster_id = int(time_clusters.labels_[i])
                     cursor.execute("UPDATE photos SET time_cluster_id=? WHERE id=?", (cluster_id, photo_id))
 
-            # Location Clustering
             cursor.execute("SELECT id, latitude, longitude FROM photos WHERE latitude IS NOT NULL AND longitude IS NOT NULL")
             photos_with_loc = cursor.fetchall()
             
             if len(photos_with_loc) >= min_samples:
                 coords = np.array([[p[1], p[2]] for p in photos_with_loc])
-                # Convert coords to radians for haversine metric
                 coords_rad = np.radians(coords)
-                # Convert km to radians for eps
                 earth_radius_km = 6371
                 loc_eps_rad = loc_eps_km / earth_radius_km
                 
@@ -332,45 +332,6 @@ class PhotoManager:
             cursor.execute("SELECT * FROM faces WHERE photo_id=?", (photo_id,))
             return [dict(row) for row in cursor.fetchall()]
 
-    def search_similar_faces(self, query_embedding, threshold=0.5):
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute('''
-            SELECT p.filepath, p.capture_date, p.location_name, f.box_x, f.box_y, f.box_w, f.box_h, f.embedding
-            FROM photos p
-            JOIN faces f ON p.id = f.photo_id
-            ''')
-            
-            all_faces = cursor.fetchall()
-            all_matches = {}
-
-            for row in all_faces:
-                db_embedding = np.frombuffer(row['embedding'], dtype=np.float32)
-                similarity = self._check_similarity(query_embedding, db_embedding)
-                
-                if similarity >= threshold:
-                    filepath = row['filepath']
-                    match_data = {
-                        'box': (row['box_x'], row['box_y'], row['box_w'], row['box_h']),
-                        'score': similarity,
-                        'capture_date': row['capture_date'],
-                        'location_name': row['location_name']
-                    }
-                    
-                    if filepath not in all_matches:
-                        all_matches[filepath] = []
-                    all_matches[filepath].append(match_data)
-            
-            output_matches = []
-            for filepath, faces in all_matches.items():
-                faces.sort(key=lambda x: x['score'], reverse=True)
-                output_matches.append((filepath, faces))
-
-            output_matches.sort(key=lambda x: x[1][0]['score'], reverse=True)
-            
-            return output_matches
-
     def _check_similarity(self, emb1, emb2):
         emb1 = emb1.flatten()
         emb2 = emb2.flatten()
@@ -390,42 +351,126 @@ class PhotoManager:
         if not query_embeddings:
             print("Could not generate embedding for the query image.")
             return []
+        
         query_embedding = np.array(query_embeddings[0], dtype=np.float32)
 
-        all_matches = []
+        all_matches = {}
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT p.filepath, p.location_name, p.capture_date, f.box_x, f.box_y, f.box_w, f.box_h, f.embedding
-                FROM photos p JOIN faces f ON p.id = f.photo_id
+                SELECT
+                    p.filepath, p.location_name, p.capture_date,
+                    f.id as face_id, f.box_x, f.box_y, f.box_w, f.box_h, f.embedding,
+                    pers.name as person_name
+                FROM photos p
+                JOIN faces f ON p.id = f.photo_id
+                LEFT JOIN persons pers ON f.person_id = pers.id
             """)
             
-            for row in cursor.fetchall():
+            all_db_faces = cursor.fetchall()
+
+            for row in all_db_faces:
                 db_embedding = np.frombuffer(row['embedding'], dtype=np.float32)
                 similarity = self._check_similarity(query_embedding, db_embedding)
                 
                 if similarity >= threshold:
-                    match_data = {
-                        'filepath': row['filepath'],
-                        'location': row['location_name'],
-                        'date': row['capture_date'],
+                    filepath = row['filepath']
+                    if filepath not in all_matches:
+                        all_matches[filepath] = {
+                            'location': row['location_name'],
+                            'date': row['capture_date'],
+                            'faces': []
+                        }
+                    
+                    all_matches[filepath]['faces'].append({
+                        'score': similarity,
                         'box': (row['box_x'], row['box_y'], row['box_w'], row['box_h']),
-                        'score': similarity
-                    }
-                    all_matches.append(match_data)
-        
-        grouped_matches = {}
-        for match in all_matches:
-            path = match['filepath']
-            if path not in grouped_matches:
-                grouped_matches[path] = {'faces': [], 'location': match['location'], 'date': match['date']}
-            grouped_matches[path]['faces'].append({'box': match['box'], 'score': match['score']})
+                        'face_id': row['face_id'],
+                        'person_name': row['person_name']
+                    })
 
-        final_results = []
-        for path, data in grouped_matches.items():
-            final_results.append((path, data))
+        output_matches = []
+        for filepath, data in all_matches.items():
+            # A photo is only a match if it has at least one face meeting the threshold.
+            if data['faces']:
+                # Sort the faces within the photo by score, descending
+                data['faces'].sort(key=lambda x: x['score'], reverse=True)
+                output_matches.append((filepath, data))
 
-        final_results.sort(key=lambda x: max(f['score'] for f in x[1]['faces']), reverse=True)
+        if not output_matches:
+            return []
+
+        # Sort the list of matched photos by the score of the best-matching face in each photo
+        output_matches.sort(key=lambda x: x[1]['faces'][0]['score'], reverse=True)
         
-        return final_results
+        return output_matches
+
+    def assign_name_to_face(self, face_id, person_name, propagation_threshold=0.7):
+        """
+        Assigns a name to a specific face and propagates that name to all other
+        similar, unnamed faces in the database.
+        Returns the total number of faces updated (including the initial one).
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            person_name = person_name.strip()
+            if not person_name:
+                return 0
+
+            # 1. Get or create the person
+            cursor.execute("SELECT id FROM persons WHERE name = ?", (person_name,))
+            person_result = cursor.fetchone()
+            if person_result:
+                person_id = person_result[0]
+            else:
+                cursor.execute("INSERT INTO persons (name) VALUES (?)", (person_name,))
+                person_id = cursor.lastrowid
+            
+            # 2. Update the primary face and get its embedding
+            cursor.execute("UPDATE faces SET person_id = ? WHERE id = ?", (person_id, face_id))
+            cursor.execute("SELECT embedding FROM faces WHERE id = ?", (face_id,))
+            target_embedding_blob = cursor.fetchone()
+            if not target_embedding_blob:
+                return 0
+            
+            target_embedding = np.frombuffer(target_embedding_blob[0], dtype=np.float32)
+
+            # 3. Find all other unnamed faces and compare
+            cursor.execute("SELECT id, embedding FROM faces WHERE person_id IS NULL AND id != ?", (face_id,))
+            unnamed_faces = cursor.fetchall()
+            
+            updated_count = 1  # Starts at 1 for the face we just named
+
+            for other_face_id, other_embedding_blob in unnamed_faces:
+                other_embedding = np.frombuffer(other_embedding_blob, dtype=np.float32)
+                similarity = self._check_similarity(target_embedding, other_embedding)
+                
+                if similarity >= propagation_threshold:
+                    cursor.execute("UPDATE faces SET person_id = ? WHERE id = ?", (person_id, other_face_id))
+                    updated_count += 1
+            
+            conn.commit()
+            return updated_count
+
+    def get_all_persons(self):
+        """Returns a list of all named persons in the database."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name FROM persons ORDER BY name")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_photos_by_person(self, person_id):
+        """Returns all photos containing a specific person."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT DISTINCT p.*
+                FROM photos p
+                JOIN faces f ON p.id = f.photo_id
+                WHERE f.person_id = ?
+                ORDER BY p.capture_date DESC
+            """, (person_id,))
+            return [dict(row) for row in cursor.fetchall()]

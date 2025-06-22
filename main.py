@@ -62,7 +62,7 @@ def main():
             st.write("No matches found.")
         else:
             st.header(f"{len(matches)} matching photos found:")
-            for filepath, data in matches:
+            for i, (filepath, data) in enumerate(matches):
                 st.subheader(f"Photo: {os.path.basename(filepath)}")
                 col1, col2 = st.columns([1, 2])
                 with col1:
@@ -71,13 +71,72 @@ def main():
                     st.write(f"**Location:** {data.get('location', 'N/A')}")
                     st.write(f"**Date:** {data.get('date', 'N/A')}")
                     st.write(f"**Found {len(data['faces'])} matching faces:**")
-                    for face in data['faces']:
-                        st.write(f"- Score: {face['score']:.2f}")
+                    for j, face in enumerate(data['faces']):
+                        unique_key = f"face_{i}_{j}"
+                        person_name = face.get('person_name', 'Unknown')
+                        score = face['score']
+                        st.write(f"- **Person:** {person_name} (Score: {score:.2f})")
+                        
+                        # UI for naming a person
+                        new_name = st.text_input("Name this person:", key=f"{unique_key}_name").strip()
+                        if st.button("Save Name", key=f"{unique_key}_save"):
+                            if new_name:
+                                updated_count = photo_manager.assign_name_to_face(face['face_id'], new_name)
+                                if updated_count > 1:
+                                    st.success(f"Saved name '{new_name}' and applied it to {updated_count - 1} other similar faces.")
+                                else:
+                                    st.success(f"Saved name '{new_name}' for this face.")
+                                
+                                # Force a refresh of the person list in the session state
+                                if 'persons_list' in st.session_state:
+                                    del st.session_state.persons_list
+                                
+                                import time
+                                time.sleep(1) # Give user time to read the message
+                                st.rerun()
+                            else:
+                                st.warning("Please enter a name before saving.")
 
         # Clean up the uploaded file
         os.remove(query_image_path)
 
     st.divider()
+
+    # --- Browse by Person (with robust state management) ---
+    st.sidebar.title("Browse by Person")
+
+    # Use session state to manage the list of persons and prevent stale data on rerun
+    if 'persons_list' not in st.session_state:
+        st.session_state.persons_list = photo_manager.get_all_persons()
+
+    persons = st.session_state.persons_list
+    persons = [p for p in persons if p.get('name')] # Filter out invalid entries
+
+    if not persons:
+        st.sidebar.info("No named people yet. Name some faces in the search results first!")
+    else:
+        person_options = {p['name']: p['id'] for p in persons}
+        person_names = sorted(list(person_options.keys()))
+        
+        selected_person_name = st.sidebar.selectbox(
+            "Select a person",
+            options=person_names,
+            key='person_select_stable' # Stable key to prevent widget state issues
+        )
+
+        if selected_person_name:
+            selected_person_id = person_options[selected_person_name]
+            st.header(f"Photos of {selected_person_name}")
+            person_photos = photo_manager.get_photos_by_person(selected_person_id)
+
+            if person_photos:
+                st.write(f"Found {len(person_photos)} photo(s).")
+                cols = st.columns(5)
+                for i, p in enumerate(person_photos):
+                    with cols[i % 5]:
+                        st.image(orient_image(p['filepath']), caption=os.path.basename(p['filepath']), use_column_width=True)
+            else:
+                st.warning(f"No photos found for {selected_person_name}.")
 
     # --- Photo Albums Display ---
     st.header("Photo Albums")

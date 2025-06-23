@@ -48,6 +48,67 @@ document.addEventListener('DOMContentLoaded', function() {
         indicator.style.display = show ? 'block' : 'none';
     }
 
+    // Toast Notifications
+    function showToast(message, type = 'info', duration = 3000) {
+        Toastify({
+            text: message,
+            duration: duration,
+            gravity: 'top', // top or bottom
+            position: 'right', // left, center or right
+            close: true,
+            style: {
+                background:
+                    type === 'error'
+                        ? '#e74c3c' // red
+                        : type === 'success'
+                        ? '#2ecc71' // green
+                        : type === 'warning'
+                        ? '#f1c40f' // yellow
+                        : '#3498db', // blue for info/default
+                color: '#ffffff',
+            },
+        }).showToast();
+    }
+
+    // Confirmation Dialog
+    function showConfirm(message) {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.className = 'confirm-overlay';
+            const dialog = document.createElement('div');
+            dialog.className = 'confirm-dialog';
+
+            const msg = document.createElement('p');
+            msg.textContent = message;
+
+            const buttons = document.createElement('div');
+            buttons.className = 'confirm-buttons';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.className = 'confirm-cancel-btn';
+            const okBtn = document.createElement('button');
+            okBtn.textContent = 'OK';
+            okBtn.className = 'confirm-ok-btn';
+
+            cancelBtn.onclick = () => {
+                document.body.removeChild(overlay);
+                resolve(false);
+            };
+            okBtn.onclick = () => {
+                document.body.removeChild(overlay);
+                resolve(true);
+            };
+
+            buttons.appendChild(cancelBtn);
+            buttons.appendChild(okBtn);
+            dialog.appendChild(msg);
+            dialog.appendChild(buttons);
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+        });
+    }
+
     // --- Core Functions ---
     function loadPhotos() {
         if (isLoading || allPhotosLoaded) return;
@@ -261,8 +322,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function unassignNameFromFace(faceId, faceBox) {
-        if (!confirm('Are you sure you want to remove this name?')) {
+    async function unassignNameFromFace(faceId, faceBox) {
+        const confirmed = await showConfirm('Are you sure you want to remove this name?');
+        if (!confirmed) {
             return;
         }
         fetch('/api/unassign_face_name', {
@@ -287,8 +349,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function deletePhoto(photoId, elementToRemove) {
-        if (!confirm('Are you sure you want to delete this photo? This action cannot be undone.')) {
+    async function deletePhoto(photoId, elementToRemove) {
+        const confirmed = await showConfirm('Are you sure you want to delete this photo? This action cannot be undone.');
+        if (!confirmed) {
             return;
         }
 

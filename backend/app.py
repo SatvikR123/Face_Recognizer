@@ -156,6 +156,18 @@ def unassign_face_name():
         print(f"Error unassigning name from face: {e}")
         return jsonify({'error': 'Failed to unassign name.'}), 500
 
+@app.route('/api/photo/<int:photo_id>', methods=['DELETE'])
+def delete_photo(photo_id):
+    try:
+        result = photo_manager.delete_photo(photo_id)
+        if result.get('status') == 'success':
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 404
+    except Exception as e:
+        print(f"Error deleting photo: {e}")
+        return jsonify({'error': 'Failed to delete photo.'}), 500
+
 if __name__ == '__main__':
     print("Starting server...")
     app.run(debug=True, port=5001)

@@ -254,3 +254,49 @@ header h1 {
     color: #007BFF;
     text-decoration: none;
 }
+
+/* New styles for photo item container and delete button */
+.photo-item-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.photo-item-container:hover .photo-actions {
+    opacity: 1;
+}
+
+.photo-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 10;
+}
+
+.delete-photo-btn {
+    background-color: transparent;
+    color: white;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    font-size: 28px;
+    line-height: 30px;
+    text-align: center;
+    font-weight: bold;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+    transition: color 0.2s ease;
+}
+
+.delete-photo-btn:hover {
+    color: #ff4d4d;
+}
+
+.delete-photo-btn::before {
+    content: '×';
+}

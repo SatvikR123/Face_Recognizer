@@ -394,6 +394,35 @@ class PhotoManager:
             """, (photo_id,))
             return [dict(row) for row in cursor.fetchall()]
 
+    def delete_photo(self, photo_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # First, get the filename to delete the file
+            cursor.execute("SELECT filename FROM photos WHERE id = ?", (photo_id,))
+            result = cursor.fetchone()
+            if not result:
+                return {'status': 'error', 'message': 'Photo not found'}
+
+            filename = result[0]
+            filepath = os.path.join(self.gallery_path, filename)
+
+            # Delete the photo from the filesystem
+            if os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                    print(f"Deleted file: {filepath}")
+                except OSError as e:
+                    print(f"Error deleting file {filepath}: {e}")
+                    return {'status': 'error', 'message': f'Failed to delete file: {e}'}
+
+            # Delete the photo record from the database.
+            # The ON DELETE CASCADE for faces table will handle associated faces.
+            cursor.execute("DELETE FROM photos WHERE id = ?", (photo_id,))
+            conn.commit()
+
+            print(f"Deleted photo ID {photo_id} from database.")
+            return {'status': 'success', 'message': 'Photo deleted successfully'}
+
 
 
     def _check_similarity(self, emb1, emb2):

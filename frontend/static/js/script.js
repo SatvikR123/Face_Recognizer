@@ -53,11 +53,30 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         clearSearchBtn.style.display = 'block';
         photos.forEach(photo => {
+            const photoItemContainer = document.createElement('div');
+            photoItemContainer.className = 'photo-item-container';
+
             const photoItem = document.createElement('div');
             photoItem.className = 'photo-item';
             photoItem.innerHTML = `<img src="/images/${photo.filename}" alt="${photo.filename}" loading="lazy">`;
             photoItem.addEventListener('click', () => openModal(photo));
-            photoGrid.appendChild(photoItem);
+
+            const photoActions = document.createElement('div');
+            photoActions.className = 'photo-actions';
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-photo-btn';
+
+            deleteBtn.title = 'Delete Photo';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                deletePhoto(photo.id, photoItemContainer);
+            };
+
+            photoActions.appendChild(deleteBtn);
+            photoItemContainer.appendChild(photoItem);
+            photoItemContainer.appendChild(photoActions);
+            photoGrid.appendChild(photoItemContainer);
         });
     }
 
@@ -220,6 +239,34 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error unassigning name:', error);
             alert('An error occurred while unassigning the name. Please check the console.');
+        });
+    }
+
+    function deletePhoto(photoId, elementToRemove) {
+        if (!confirm('Are you sure you want to delete this photo? This action cannot be undone.')) {
+            return;
+        }
+
+        fetch(`/api/photo/${photoId}`, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.error || 'Server error') });
+            }
+            return response.json();
+        })
+        .then(result => {
+            if (result.status === 'success') {
+                elementToRemove.remove();
+                // Optional: show a small success message
+            } else {
+                alert('Failed to delete photo: ' + result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting photo:', error);
+            alert('An error occurred while deleting the photo: ' + error.message);
         });
     }
 

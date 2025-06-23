@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     // --- DOM Elements ---
-    const photoGrid = document.getElementById('photo-grid');
+    const photoGrid = document.querySelector('.photo-grid');
     const modal = document.getElementById('photo-modal');
     const modalImage = document.getElementById('modal-image');
     const modalCaption = document.getElementById('modal-caption');
@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search-input');
 
     const clearSearchBtn = document.getElementById('clear-search-btn');
+
+
 
     // --- Initial Load ---
     loadAllPhotos();
@@ -339,4 +341,6 @@ document.addEventListener('DOMContentLoaded', function() {
         clearSearchBtn.style.display = 'none';
         loadAllPhotos();
     });
+
+
 });

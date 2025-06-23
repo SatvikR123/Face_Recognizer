@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Albums</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* Albums Page Specific Styles */
+        body {
+            background-color: #121212;
+            color: #E0E0E0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        .header {
+            background-color: #1F1F1F;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        .nav-links a {
+            color: #007BFF;
+            text-decoration: none;
+            margin-left: 1.5rem;
+            font-size: 1rem;
+            transition: color 0.3s ease;
+        }
+        .nav-links a:hover {
+            color: #0056b3;
+        }
+        main {
+            padding: 2rem;
+        }
+        .albums-section {
+            margin-bottom: 3rem;
+        }
+        .albums-section h1 {
+            border-bottom: 2px solid #007BFF;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .map-container {
+            height: 300px;
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            background-color: #333;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Photo Albums</h1>
+        <nav class="nav-links">
+            <a href="/">Gallery</a>
+            <a href="/albums">Albums</a>
+        </nav>
+    </header>
+
+    <main>
+        <section id="location-albums" class="albums-section">
+            <h1>Albums by Location</h1>
+            <div id="location-grid"></div>
+        </section>
+
+        <section id="date-albums" class="albums-section">
+            <h1>Albums by Date</h1>
+            <div id="date-grid"></div>
+        </section>
+    </main>
+
+    <script src="/static/js/albums.js"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ gmaps_api_key }}&callback=initPage"></script>
+</body>
+</html>

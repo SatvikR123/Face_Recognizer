@@ -1,7 +1,9 @@
 import sys
 import os
 import tempfile
-from flask import Flask, jsonify, request, send_from_directory
+from collections import Counter
+from datetime import datetime
+from flask import Flask, jsonify, request, send_from_directory, render_template
 
 # Add the project root to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -33,6 +35,67 @@ def get_photos():
     for photo in photos_data:
         photo['url'] = f'/images/{photo["filename"]}'
     return jsonify(photos_data)
+
+@app.route('/api/photos/by_location')
+def get_photos_by_location():
+    location_clusters = photo_manager.get_location_clusters()
+    
+    grouped_photos = []
+    for cid, photos in sorted(location_clusters.items()):
+        # Determine the most common location name for the cluster title
+        location_names = [p.get('location_name') for p in photos if p.get('location_name')]
+        if location_names:
+            most_common_loc = Counter(location_names).most_common(1)[0][0]
+            display_title = most_common_loc
+        else:
+            # Fallback to coordinates if no names are available
+            lats = [p['latitude'] for p in photos if p.get('latitude') is not None]
+            lons = [p['longitude'] for p in photos if p.get('longitude') is not None]
+            if lats and lons:
+                avg_lat = sum(lats) / len(lats)
+                avg_lon = sum(lons) / len(lons)
+                display_title = f"Location near ({avg_lat:.4f}, {avg_lon:.4f})"
+            else:
+                display_title = f"Unknown Location Cluster #{cid}"
+
+        # Add url to each photo
+        for photo in photos:
+            photo['url'] = f'/images/{os.path.basename(photo["filepath"])}'
+
+        grouped_photos.append({
+            'title': display_title,
+            'photos': photos
+        })
+        
+    return jsonify(grouped_photos)
+
+@app.route('/api/photos/by_date')
+def get_photos_by_date():
+    time_clusters = photo_manager.get_time_clusters()
+    
+    grouped_photos = []
+    for cid, photos in sorted(time_clusters.items()):
+        # Determine the date for the cluster title from the first photo
+        date_str = photos[0].get('capture_date')
+        if date_str:
+            try:
+                date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+                display_title = f"Album from {date}"
+            except ValueError:
+                display_title = f"Unknown Date Cluster #{cid}"
+        else:
+            display_title = f"Unknown Date Cluster #{cid}"
+
+        # Add url to each photo
+        for photo in photos:
+            photo['url'] = f'/images/{os.path.basename(photo["filepath"])}'
+
+        grouped_photos.append({
+            'title': display_title,
+            'photos': photos
+        })
+        
+    return jsonify(grouped_photos)
 
 @app.route('/api/upload', methods=['POST'])
 def upload_photos():
@@ -167,6 +230,11 @@ def delete_photo(photo_id):
     except Exception as e:
         print(f"Error deleting photo: {e}")
         return jsonify({'error': 'Failed to delete photo.'}), 500
+
+@app.route('/albums')
+def albums_page():
+    google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY')
+    return render_template('albums.html', gmaps_api_key=google_maps_api_key)
 
 if __name__ == '__main__':
     print("Starting server...")

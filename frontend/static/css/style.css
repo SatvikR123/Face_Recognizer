@@ -93,12 +93,20 @@ header h1 {
     background-color: #c82333;
 }
 
+.group-btn {
+    background-color: #28a745; /* Vibrant Green */
+}
+
+.group-btn:hover {
+    background-color: #218838;
+}
+
 /* Photo grid styles */
-#photo-grid {
+.photo-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 1rem;
-    padding: 2rem;
+    padding: 1rem;
 }
 
 .photo-item {
@@ -299,4 +307,35 @@ header h1 {
 
 .delete-photo-btn::before {
     content: '×';
+}
+
+/* Navigation Links */
+.nav-links {
+    display: flex;
+    align-items: center;
+}
+
+.nav-links a {
+    color: #007BFF;
+    text-decoration: none;
+    margin-left: 1.5rem;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.nav-links a:hover {
+    color: #0056b3;
+}
+
+/* Album Group Styles */
+.album-group {
+    margin-bottom: 2rem;
+}
+
+.album-group-title {
+    color: #E0E0E0;
+    border-bottom: 2px solid #007BFF;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
 }

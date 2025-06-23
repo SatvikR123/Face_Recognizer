@@ -10,27 +10,36 @@
     <header>
         <h1>Photo Gallery</h1>
         <div class="header-actions">
+            <!-- Name Search -->
             <form id="name-search-form" class="name-search-container">
                 <input type="search" id="name-search-input" list="person-names" placeholder="Search by name...">
                 <datalist id="person-names"></datalist>
                 <button type="submit" class="search-btn">Search</button>
             </form>
 
+            <!-- Upload -->
             <form id="upload-form" class="upload-container">
                 <input type="file" id="image-upload" name="images" accept="image/*" multiple style="display: none;">
                 <label for="image-upload" class="upload-btn">Upload Images</label>
             </form>
 
+            <!-- Face Search -->
             <form id="search-form" class="search-container">
                 <input type="file" id="search-input" name="image" accept="image/*" style="display: none;">
                 <label for="search-input" class="search-btn">Search by Face</label>
             </form>
             
             <button id="clear-search-btn" class="clear-btn" style="display:none;">Clear Search</button>
+
+            <!-- Navigation -->
+            <nav class="nav-links">
+                <a href="/">Gallery</a>
+                <a href="/albums">Albums</a>
+            </nav>
         </div>
     </header>
     <main>
-        <div class="photo-grid" id="photo-grid">
+        <div class="photo-grid">
             <!-- Photos will be dynamically loaded here -->
         </div>
     </main>

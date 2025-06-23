@@ -250,13 +250,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 faceBox.title = name;
                 loadPersonNames();
             } else {
-                alert('Failed to save name: ' + (result.error || 'Unknown error from server'));
+                showToast('Failed to save name: ' + (result.error || 'Unknown error from server'), 'error');
                 showTagInput(faceBox, faceId);
             }
         })
         .catch(error => {
             console.error('Error assigning name:', error);
-            alert('Failed to save name. See browser console for details. Error: ' + error.message);
+            showToast('Failed to save name. See browser console for details.', 'error');
             showTagInput(faceBox, faceId);
         });
     }
@@ -278,12 +278,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Re-add the click listener to allow tagging again
                 faceBox.addEventListener('click', () => showTagInput(faceBox, faceId), { once: true });
             } else {
-                alert('Failed to unassign name: ' + (result.error || 'Unknown error'));
+                showToast('Failed to unassign name: ' + (result.error || 'Unknown error'), 'error');
             }
         })
         .catch(error => {
             console.error('Error unassigning name:', error);
-            alert('An error occurred while unassigning the name. Please check the console.');
+            showToast('An error occurred while unassigning the name. Please check the console.', 'error');
         });
     }
 
@@ -306,12 +306,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 elementToRemove.remove();
                 // Optional: show a small success message
             } else {
-                alert('Failed to delete photo: ' + result.message);
+                showToast('Failed to delete photo: ' + result.message, 'error');
             }
         })
         .catch(error => {
             console.error('Error deleting photo:', error);
-            alert('An error occurred while deleting the photo: ' + error.message);
+            showToast('An error occurred while deleting the photo.', 'error');
         });
     }
 
@@ -351,7 +351,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         loadPhotos();
                         loadPersonNames();
                     } else {
-                        alert('Upload failed: ' + (data.error || 'Unknown error'));
+                        showToast('Upload failed: ' + (data.error || 'Unknown error'), 'error');
                     }
                 })
                 .catch(error => console.error('Error uploading files:', error))
@@ -369,7 +369,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(response => response.json())
                 .then(photos => {
                     if (photos.error) {
-                        alert('Search failed: ' + photos.error);
+                        showToast('Search failed: ' + photos.error, 'error');
                     } else {
                         allPhotosLoaded = true; // Disable infinite scroll for search results
                         photoGrid.innerHTML = '';
@@ -389,7 +389,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(photos => {
                 if (photos.error) {
-                    alert('Search failed: ' + photos.error);
+                    showToast('Search failed: ' + photos.error, 'error');
                 } else {
                     allPhotosLoaded = true; // Disable infinite scroll for search results
                     photoGrid.innerHTML = '';

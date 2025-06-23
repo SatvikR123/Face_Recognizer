@@ -31,9 +31,11 @@ def serve_image(filename):
 
 @app.route('/api/photos')
 def get_photos():
-    photos_data = photo_manager.get_all_photos()
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    photos_data = photo_manager.get_all_photos(page=page, per_page=per_page)
     for photo in photos_data:
-        photo['url'] = f'/images/{photo["filename"]}'
+        photo['url'] = f'/images/{os.path.basename(photo["filepath"])}'
     return jsonify(photos_data)
 
 @app.route('/api/photos/by_location')

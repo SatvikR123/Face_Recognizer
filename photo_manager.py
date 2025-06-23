@@ -354,11 +354,12 @@ class PhotoManager:
                 clusters[cid].append(dict(row))
             return clusters
 
-    def get_all_photos(self):
+    def get_all_photos(self, page=1, per_page=20):
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM photos ORDER BY capture_date DESC")
+            offset = (page - 1) * per_page
+            cursor.execute("SELECT * FROM photos ORDER BY capture_date DESC LIMIT ? OFFSET ?", (per_page, offset))
             return [dict(row) for row in cursor.fetchall()]
 
     def get_all_person_names(self):

@@ -21,16 +21,61 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
+    let currentPage = 1;
+    let isLoading = false;
+    let allPhotosLoaded = false;
+
     // --- Initial Load ---
-    loadAllPhotos();
+    loadPhotos();
     loadPersonNames();
 
+    // --- Infinite Scroll ---
+    window.addEventListener('scroll', () => {
+        if (isLoading || allPhotosLoaded) return;
+        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
+            loadPhotos();
+        }
+    });
+
+    function showLoadingIndicator(show) {
+        let indicator = document.getElementById('loading-indicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'loading-indicator';
+            indicator.textContent = 'Loading...';
+            document.body.appendChild(indicator);
+        }
+        indicator.style.display = show ? 'block' : 'none';
+    }
+
     // --- Core Functions ---
-    function loadAllPhotos() {
-        fetch('/api/photos')
+    function loadPhotos() {
+        if (isLoading || allPhotosLoaded) return;
+        isLoading = true;
+        showLoadingIndicator(true);
+
+        fetch(`/api/photos?page=${currentPage}`)
             .then(response => response.json())
-            .then(displayPhotos)
-            .catch(error => console.error('Error loading photos:', error));
+            .then(newPhotos => {
+                if (newPhotos.length > 0) {
+                    displayPhotos(newPhotos);
+                    currentPage++;
+                } else {
+                    allPhotosLoaded = true;
+                }
+            })
+            .catch(error => console.error('Error loading photos:', error))
+            .finally(() => {
+                isLoading = false;
+                showLoadingIndicator(false);
+                // Check if the content is scrollable and load more if it's not.
+                setTimeout(() => {
+                    const isScrollable = document.documentElement.scrollHeight > document.documentElement.clientHeight;
+                    if (!isScrollable && !allPhotosLoaded) {
+                        loadPhotos();
+                    }
+                }, 200);
+            });
     }
 
     function loadPersonNames() {
@@ -48,19 +93,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function displayPhotos(photos) {
-        photoGrid.innerHTML = '';
-        if (photos.length === 0) {
-            photoGrid.innerHTML = '<p class="no-photos-msg">No photos found. Try a different search or upload some photos!</p>';
+        if (photos.length === 0 && photoGrid.childElementCount === 0) {
+            photoGrid.innerHTML = '<p class="no-photos-msg">No photos found.</p>';
             return;
         }
-        clearSearchBtn.style.display = 'block';
+
         photos.forEach(photo => {
             const photoItemContainer = document.createElement('div');
             photoItemContainer.className = 'photo-item-container';
 
             const photoItem = document.createElement('div');
             photoItem.className = 'photo-item';
-            photoItem.innerHTML = `<img src="/images/${photo.filename}" alt="${photo.filename}" loading="lazy">`;
+            photoItem.innerHTML = `<img src="${photo.url}" alt="Photo" loading="lazy">`;
             photoItem.addEventListener('click', () => openModal(photo));
 
             const photoActions = document.createElement('div');
@@ -68,7 +112,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'delete-photo-btn';
-
             deleteBtn.title = 'Delete Photo';
             deleteBtn.onclick = (e) => {
                 e.stopPropagation();
@@ -85,8 +128,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Modal & Face Tagging ---
     function openModal(photo) {
         modal.style.display = 'block';
-        modalImage.src = `/images/${photo.filename}`;
-        let captionText = `Filename: ${photo.filename}`;
+        modalImage.src = photo.url;
+        let captionText = `Filename: ${photo.filepath.split('/').pop()}`;
         if (photo.capture_date) captionText += `<br>Captured: ${new Date(photo.capture_date).toLocaleString()}`;
         if (photo.location_name) captionText += `<br>Location: ${photo.location_name}`;
         modalCaption.innerHTML = captionText;
@@ -301,7 +344,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        loadAllPhotos();
+                        // Reset and reload for infinite scroll
+                        currentPage = 1;
+                        allPhotosLoaded = false;
+                        photoGrid.innerHTML = '';
+                        loadPhotos();
                         loadPersonNames();
                     } else {
                         alert('Upload failed: ' + (data.error || 'Unknown error'));
@@ -320,7 +367,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = new FormData(searchForm);
             fetch('/api/search_by_face', { method: 'POST', body: formData })
                 .then(response => response.json())
-                .then(data => data.error ? alert('Search failed: ' + data.error) : displayPhotos(data))
+                .then(photos => {
+                    if (photos.error) {
+                        alert('Search failed: ' + photos.error);
+                    } else {
+                        allPhotosLoaded = true; // Disable infinite scroll for search results
+                        photoGrid.innerHTML = '';
+                        displayPhotos(photos);
+                        clearSearchBtn.style.display = 'block';
+                    }
+                })
                 .catch(error => console.error('Error searching by face:', error));
         }
     });
@@ -331,7 +387,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!name) return;
         fetch(`/api/search_by_name?name=${encodeURIComponent(name)}`)
             .then(response => response.json())
-            .then(data => data.error ? alert('Search failed: ' + data.error) : displayPhotos(data))
+            .then(photos => {
+                if (photos.error) {
+                    alert('Search failed: ' + photos.error);
+                } else {
+                    allPhotosLoaded = true; // Disable infinite scroll for search results
+                    photoGrid.innerHTML = '';
+                    displayPhotos(photos);
+                    clearSearchBtn.style.display = 'block';
+                }
+            })
             .catch(error => console.error('Error searching by name:', error));
     });
 
@@ -339,7 +404,12 @@ document.addEventListener('DOMContentLoaded', function() {
         nameSearchInput.value = '';
         searchInput.value = '';
         clearSearchBtn.style.display = 'none';
-        loadAllPhotos();
+        
+        // Reset state for infinite scrolling
+        currentPage = 1;
+        allPhotosLoaded = false;
+        photoGrid.innerHTML = '';
+        loadPhotos();
     });
 
 

@@ -14,3 +14,5 @@ __pycache__/
 # Test files
 test.py
 test2.py
+
+/home/satakucodes/Desktop/Coding/Intern_Project/Face_Recognizer/ObjectRemoval/src/models/states_pt_places2.pth

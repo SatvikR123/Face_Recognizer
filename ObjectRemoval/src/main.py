@@ -3,10 +3,11 @@ import argparse
 import matplotlib.pyplot as plt
 import cv2
 import os
+import numpy as np
 from objRemovalDrawing import ObjectRemove
 from models.deepFill import Generator
 from torchvision.models.detection import maskrcnn_resnet50_fpn, MaskRCNN_ResNet50_FPN_Weights
-
+from lama_cleaner.model_manager import ModelManager
 ##################################
 #get image path from command line#
 ##################################
@@ -30,7 +31,7 @@ rcnn = rcnn.eval()
 #########################
 #create inaptining model#
 #########################
-print('Creating deepfil model')
+print('Creating inpaint model')
 deepfill = Generator(checkpoint=deepfill_weights_path, return_flow=True)
 ######################
 #create ObjectRemoval#
@@ -47,7 +48,20 @@ output = model.run()
 #################
 #display results#
 #################
-img = cv2.cvtColor(model.image_orig[0].permute(1,2,0).numpy(),cv2.COLOR_RGB2BGR)
+tensor_img = model.image_orig[0]
+
+# If it's on GPU, move it to CPU
+if tensor_img.is_cuda:
+    tensor_img = tensor_img.cpu()
+
+# Convert to NumPy array
+np_img = tensor_img.detach().numpy()
+
+# Transpose to HWC format
+np_img = np.transpose(np_img, (1, 2, 0))
+
+# Convert RGB to BGR
+img = cv2.cvtColor(np_img, cv2.COLOR_RGB2BGR)
 boxed = cv2.rectangle(img, (model.box[0], model.box[1]),(model.box[2], model.box[3]), (0,255,0),2)
 boxed = cv2.cvtColor(boxed,cv2.COLOR_BGR2RGB)
 

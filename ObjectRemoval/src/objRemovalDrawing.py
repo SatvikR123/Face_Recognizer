@@ -1,9 +1,11 @@
-
 import copy
 import cv2
 import numpy as np
+import torch
 import torchvision.transforms as T  
 from torchvision.io import read_image
+from iopaint.schema import InpaintRequest
+
 
 class ObjectRemove():
 

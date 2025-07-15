@@ -250,38 +250,34 @@ class PhotoManager:
                     """, (filename, filepath, capture_date, lat, lon, loc_name, mod_time))
                     photo_id = cursor.lastrowid
 
-                # 2. Extract faces and try to recognize them
-                if photo_id:
-                    faces = self._extract_faces(filepath)
-                    if faces:
-                        embeddings = self._get_embeddings(faces)
-                        for i, face_info in enumerate(faces):
-                            if i < len(embeddings):
-                                x, y, w, h = face_info['box']
-                                new_embedding = embeddings[i]
-                                embedding_blob = new_embedding.tobytes()
-                                
-                                # --- Auto-recognition logic ---
-                                best_match_person_id = None
-                                if known_faces:
-                                    best_match_score = 0.0
-                                    for known_face in known_faces:
-                                        similarity = self._check_similarity(new_embedding, known_face['embedding'])
-                                        if similarity > best_match_score:
-                                            best_match_score = similarity
-                                            if similarity >= recognition_threshold:
-                                                best_match_person_id = known_face['person_id']
-                                    
-                                    if best_match_person_id:
-                                        print(f"  -> Recognized person ID {best_match_person_id} for a face in {filename} (Score: {best_match_score:.2f})")
+                # Extract and store faces
+                faces = self._extract_faces(filepath)
+                if faces:
+                    embeddings = self._get_embeddings(faces)
+                    for (face_info, embedding) in zip(faces, embeddings):
+                        x, y, w, h = face_info['box']
+                        embedding_blob = embedding.tobytes()
 
-                                # 3. Insert face with or without a person_id
-                                cursor.execute("""
-                                    INSERT INTO faces (photo_id, box_x, box_y, box_w, box_h, embedding, person_id) 
-                                    VALUES (?,?,?,?,?,?,?)
-                                """, (photo_id, x, y, w, h, embedding_blob, best_match_person_id))
+                        # Check for similar faces among known faces
+                        best_match_person_id = None
+                        best_match_similarity = 0
+                        for known_face in known_faces:
+                            similarity = self._check_similarity(embedding, known_face["embedding"])
+                            if similarity > recognition_threshold and similarity > best_match_similarity:
+                                best_match_similarity = similarity
+                                best_match_person_id = known_face["person_id"]
+
+                        cursor.execute("""
+                            INSERT INTO faces (photo_id, box_x, box_y, box_w, box_h, embedding, person_id) 
+                            VALUES (?,?,?,?,?,?,?)
+                        """, (photo_id, x, y, w, h, embedding_blob, best_match_person_id))
             conn.commit()
         print("Gallery indexing complete.")
+        
+        # Run clustering after indexing
+        print("Starting photo clustering...")
+        self.cluster_photos()
+        print("Photo clustering complete.")
 
     def cluster_photos(self, time_eps_hours=24, loc_eps_km=0.5, min_samples=2):
         from sklearn.cluster import DBSCAN

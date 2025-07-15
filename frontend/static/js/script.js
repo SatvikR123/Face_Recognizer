@@ -179,6 +179,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 deletePhoto(photo.id, photoItemContainer);
             };
 
+            const editBtn = document.createElement('button');
+            editBtn.className = 'edit-photo-btn';
+            editBtn.title = 'Remove Object';
+            editBtn.onclick = (e) => {
+                e.stopPropagation();
+                openEditModal(photo);
+            };
+
+            photoActions.appendChild(editBtn);
             photoActions.appendChild(deleteBtn);
             photoItemContainer.appendChild(photoItem);
             photoItemContainer.appendChild(photoActions);
@@ -385,6 +394,274 @@ document.addEventListener('DOMContentLoaded', function() {
         faceBoxContainer.style.left = '0';
         faceBoxContainer.style.width = '100%';
         faceBoxContainer.style.height = '100%';
+    }
+
+    // Object Removal Drawing Functions
+    let isDrawing = false;
+    let startX, startY;
+    let drawingCanvas = null;
+    let drawingContext = null;
+    let currentPhoto = null;
+
+    function openEditModal(photo) {
+        currentPhoto = photo;
+        modal.style.display = 'block';
+        modalImage.src = photo.url;
+        modalCaption.innerHTML = 'Draw a box around the object to remove';
+
+        // Create canvas for drawing
+        drawingCanvas = document.createElement('canvas');
+        drawingCanvas.className = 'drawing-canvas';
+        
+        // Create drawing controls
+        const controls = document.createElement('div');
+        controls.className = 'drawing-controls';
+        controls.innerHTML = `
+            <button class="confirm-btn">Confirm</button>
+            <button class="cancel-btn">Cancel</button>
+        `;
+
+        // Add canvas and controls to modal
+        const container = document.querySelector('.modal-image-container');
+        container.appendChild(drawingCanvas);
+        container.appendChild(controls);
+
+        // Wait for image to load to set canvas size
+        modalImage.onload = () => {
+            const rect = modalImage.getBoundingClientRect();
+            drawingCanvas.width = rect.width;
+            drawingCanvas.height = rect.height;
+            drawingCanvas.style.width = rect.width + 'px';
+            drawingCanvas.style.height = rect.height + 'px';
+            
+            // Position canvas exactly over the image
+            drawingCanvas.style.left = rect.left - container.getBoundingClientRect().left + 'px';
+            drawingCanvas.style.top = rect.top - container.getBoundingClientRect().top + 'px';
+            
+            // Setup drawing context
+            drawingContext = drawingCanvas.getContext('2d');
+            drawingContext.strokeStyle = '#00ff00';
+            drawingContext.lineWidth = 2;
+        };
+
+        // Add event listeners for drawing
+        drawingCanvas.addEventListener('mousedown', startDrawing);
+        drawingCanvas.addEventListener('mousemove', draw);
+        drawingCanvas.addEventListener('mouseup', stopDrawing);
+        drawingCanvas.addEventListener('mouseleave', stopDrawing);
+
+        // Add event listeners for controls
+        controls.querySelector('.confirm-btn').addEventListener('click', confirmObjectRemoval);
+        controls.querySelector('.cancel-btn').addEventListener('click', cancelObjectRemoval);
+    }
+
+    function startDrawing(e) {
+        isDrawing = true;
+        const rect = drawingCanvas.getBoundingClientRect();
+        startX = e.clientX - rect.left;
+        startY = e.clientY - rect.top;
+        currentX = startX;
+        currentY = startY;
+        
+        // Clear any previous drawing
+        drawingContext.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+
+        const rect = drawingCanvas.getBoundingClientRect();
+        currentX = e.clientX - rect.left;
+        currentY = e.clientY - rect.top;
+
+        // Clear previous drawing
+        drawingContext.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+
+        // Draw new rectangle
+        drawingContext.beginPath();
+        drawingContext.rect(
+            Math.min(startX, currentX),
+            Math.min(startY, currentY),
+            Math.abs(currentX - startX),
+            Math.abs(currentY - startY)
+        );
+        drawingContext.stroke();
+    }
+
+    function stopDrawing() {
+        isDrawing = false;
+    }
+
+    function cancelObjectRemoval() {
+        cleanupDrawing();
+        closeModal();
+    }
+
+    function cleanupDrawing() {
+        if (drawingCanvas) {
+            drawingCanvas.remove();
+            drawingCanvas = null;
+        }
+        const controls = document.querySelector('.drawing-controls');
+        if (controls) {
+            controls.remove();
+        }
+    }
+
+    function showProcessingOverlay() {
+        const overlay = document.createElement('div');
+        overlay.className = 'processing-overlay';
+        overlay.innerHTML = `
+            <div class="processing-spinner"></div>
+            <div class="processing-steps">
+                <div class="processing-step" data-step="reading">Reading Image</div>
+                <div class="processing-step" data-step="segmentation">Segmenting Object</div>
+                <div class="processing-step" data-step="inpainting">Removing Object</div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        return overlay;
+    }
+
+    function updateProcessingStep(step) {
+        const steps = document.querySelectorAll('.processing-step');
+        steps.forEach(s => {
+            if (s.dataset.step === step) {
+                s.classList.add('active');
+                s.classList.remove('completed');
+            } else if (steps[Array.from(steps).indexOf(s)].dataset.step === step) {
+                s.classList.remove('active');
+                s.classList.add('completed');
+            }
+        });
+    }
+
+    function showPreviewDialog(previewUrl) {
+        return new Promise((resolve) => {
+            const dialog = document.createElement('div');
+            dialog.className = 'preview-dialog';
+            dialog.innerHTML = `
+                <img src="${previewUrl}" alt="Preview">
+                <div class="preview-controls">
+                    <button class="keep-btn">Keep Changes</button>
+                    <button class="discard-btn">Discard Changes</button>
+                </div>
+            `;
+            
+            document.body.appendChild(dialog);
+            
+            dialog.querySelector('.keep-btn').addEventListener('click', () => {
+                dialog.remove();
+                resolve(true);
+            });
+            
+            dialog.querySelector('.discard-btn').addEventListener('click', () => {
+                dialog.remove();
+                resolve(false);
+            });
+        });
+    }
+
+    async function confirmObjectRemoval() {
+        if (!drawingCanvas || !currentPhoto) return;
+
+        const rect = drawingCanvas.getBoundingClientRect();
+        const imageRect = modalImage.getBoundingClientRect();
+        
+        // Calculate the scale between the displayed image and its natural size
+        const scaleX = modalImage.naturalWidth / imageRect.width;
+        const scaleY = modalImage.naturalHeight / imageRect.height;
+
+        // Get coordinates relative to the canvas
+        let x1 = Math.min(startX, currentX);
+        let y1 = Math.min(startY, currentY);
+        let x2 = Math.max(startX, currentX);
+        let y2 = Math.max(startY, currentY);
+
+        // Scale coordinates to match the original image size
+        const scaledCoords = {
+            x1: Math.round(x1 * scaleX),
+            y1: Math.round(y1 * scaleY),
+            x2: Math.round(x2 * scaleX),
+            y2: Math.round(y2 * scaleY)
+        };
+
+        // Create form data
+        const formData = new FormData();
+        
+        // Get just the filename without the path
+        const filename = currentPhoto.filepath.split(/[\/\\]/).pop();
+        
+        // Fetch the image and add it to form data
+        const response = await fetch(currentPhoto.url);
+        const blob = await response.blob();
+        formData.append('image', blob, filename);
+
+        // Add coordinates
+        formData.append('x1', scaledCoords.x1);
+        formData.append('y1', scaledCoords.y1);
+        formData.append('x2', scaledCoords.x2);
+        formData.append('y2', scaledCoords.y2);
+
+        // Show processing overlay
+        const overlay = showProcessingOverlay();
+
+        try {
+            // Process the image
+            const response = await fetch('/api/remove_object', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                // Show preview and get user confirmation
+                const keepChanges = await showPreviewDialog(result.preview_url);
+                
+                // Send confirmation to backend
+                const confirmResponse = await fetch('/api/confirm_edit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        preview_filename: result.preview_url.split('/').pop(),
+                        keep: keepChanges
+                    })
+                });
+                
+                const confirmResult = await confirmResponse.json();
+                
+                if (confirmResult.success && keepChanges) {
+                    showToast('Changes saved successfully!', 'success');
+                    // Update both the modal image and the grid image
+                    const newUrl = confirmResult.edited_image_url + '?t=' + new Date().getTime();
+                    modalImage.src = newUrl;
+                    
+                    // Update the image in the grid
+                    const gridImg = document.querySelector(`img[src="${currentPhoto.url}"]`);
+                    if (gridImg) {
+                        gridImg.src = newUrl;
+                    }
+                    
+                    // Update the current photo URL
+                    currentPhoto.url = confirmResult.edited_image_url;
+                } else if (!keepChanges) {
+                    showToast('Changes discarded', 'info');
+                }
+            } else {
+                showToast(result.error || 'Failed to remove object', 'error');
+            }
+        } catch (error) {
+            console.error('Error removing object:', error);
+            showToast('Failed to remove object', 'error');
+        } finally {
+            // Remove processing overlay
+            overlay.remove();
+            cleanupDrawing();
+            closeModal();
+        }
     }
 
     // --- Event Listeners ---

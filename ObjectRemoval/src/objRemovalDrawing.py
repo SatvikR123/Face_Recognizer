@@ -33,21 +33,18 @@ class ObjectRemove():
         output = self.segment(images)
         out = output[0]
 
-        print('user click')
-        #user click
-        ref_points = self.user_click()
-        self.box = ref_points
-        self.highest_prob_mask = self.find_mask(out, ref_points)
-       
-        self.highest_prob_mask[self.highest_prob_mask > 0.1]  = 1
-        self.highest_prob_mask[self.highest_prob_mask <0.1] = 0
-        self.image_masked = (images[0]*(1-self.highest_prob_mask))
-        print('inpaint')
-        #inpaint
-        output = self.inpaint()
-        
-        #return final inpainted image
-        return output
+        # Use the box coordinates that were set from the web app
+        if self.box is not None:
+            self.highest_prob_mask = self.find_mask(out, self.box)
+            self.highest_prob_mask[self.highest_prob_mask > 0.1] = 1
+            self.highest_prob_mask[self.highest_prob_mask < 0.1] = 0
+            self.image_masked = (images[0]*(1-self.highest_prob_mask))
+            print('inpaint')
+            #inpaint
+            output = self.inpaint()
+            return output
+        else:
+            raise ValueError("No bounding box coordinates provided")
 
     def percent_within(self,nonzeros, rectangle):
         '''
@@ -201,3 +198,4 @@ class ObjectRemove():
     def inpaint(self):
         output = self.inpaintModel.infer(self.image_orig[0], self.highest_prob_mask, return_vals=['inpainted'])
         return output[0]
+

@@ -4,11 +4,16 @@ import tempfile
 from collections import Counter
 from datetime import datetime
 from flask import Flask, jsonify, request, send_from_directory, render_template
+import numpy as np
 
 # Add the project root to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from photo_manager import PhotoManager
+from ObjectRemoval.src.objRemovalDrawing import ObjectRemove
+from ObjectRemoval.src.models.deepFill import Generator
+from torchvision.models.detection import maskrcnn_resnet50_fpn, MaskRCNN_ResNet50_FPN_Weights
+import cv2
 
 app = Flask(__name__, static_folder='../frontend/static', template_folder='../frontend/templates')
 
@@ -21,21 +26,53 @@ os.makedirs(TEMP_FOLDER, exist_ok=True)
 # Initialize PhotoManager
 photo_manager = PhotoManager(gallery_path=GALLERY_FOLDER)
 
+# Initialize Object Removal Models
+print("Initializing object removal models...")
+weights = MaskRCNN_ResNet50_FPN_Weights.DEFAULT
+transforms = weights.transforms()
+rcnn = maskrcnn_resnet50_fpn(weights=weights, progress=False)
+rcnn = rcnn.eval()
+
+# Find deepfill weights
+deepfill_weights_path = None
+for f in os.listdir('ObjectRemoval/src/models'):
+    if f.endswith('.pth'):
+        deepfill_weights_path = os.path.join('ObjectRemoval/src/models', f)
+if not deepfill_weights_path:
+    raise FileNotFoundError("DeepFill model weights not found in ObjectRemoval/src/models/")
+
+deepfill = Generator(checkpoint=deepfill_weights_path, return_flow=True)
+
+# Index gallery on startup
+# print("Indexing gallery...")
+# try:
+#     photo_manager.index_gallery(force_reindex=True)
+#     print("Gallery indexing completed successfully")
+# except Exception as e:
+#     print(f"Error during gallery indexing: {e}")
+
 @app.route('/')
 def index():
     return send_from_directory(app.template_folder, 'index.html')
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
-    return send_from_directory(GALLERY_FOLDER, filename)
+    # Clean the filename to prevent directory traversal
+    filename = os.path.basename(filename)
+    # Use absolute path to GALLERY_FOLDER
+    return send_from_directory(os.path.abspath(GALLERY_FOLDER), filename)
 
 @app.route('/api/photos')
 def get_photos():
+    print("[DEBUG] /api/photos endpoint called")
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
+    print(f"[DEBUG] Fetching page {page} with {per_page} items per page")
     photos_data = photo_manager.get_all_photos(page=page, per_page=per_page)
+    print(f"[DEBUG] Found {len(photos_data)} photos")
     for photo in photos_data:
         photo['url'] = f'/images/{os.path.basename(photo["filepath"])}'
+        print(f"[DEBUG] Photo URL: {photo['url']}")
     return jsonify(photos_data)
 
 @app.route('/api/photos/by_location')
@@ -232,6 +269,147 @@ def delete_photo(photo_id):
     except Exception as e:
         print(f"Error deleting photo: {e}")
         return jsonify({'error': 'Failed to delete photo.'}), 500
+
+@app.route('/api/remove_object', methods=['POST'])
+def remove_object():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image provided'}), 400
+    
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    # Get bounding box coordinates from request
+    try:
+        x1 = int(request.form['x1'])
+        y1 = int(request.form['y1'])
+        x2 = int(request.form['x2'])
+        y2 = int(request.form['y2'])
+        
+        # Ensure coordinates are valid
+        if x1 < 0 or y1 < 0 or x2 < x1 or y2 < y1:
+            return jsonify({'error': 'Invalid bounding box coordinates'}), 400
+            
+    except (KeyError, ValueError) as e:
+        print(f"Error parsing coordinates: {e}")
+        return jsonify({'error': 'Invalid bounding box coordinates'}), 400
+
+    # Clean the filename to only have the base name
+    original_filename = os.path.basename(file.filename)
+    
+    # Save original image to temp directory
+    temp_path = os.path.join(TEMP_FOLDER, original_filename)
+    file.save(temp_path)
+
+    try:
+        # Read the original image to get dimensions
+        img = cv2.imread(temp_path)
+        if img is None:
+            raise ValueError("Failed to read image")
+        
+        orig_h, orig_w = img.shape[:2]
+        
+        # Calculate target size (same logic as in ObjectRemove.preprocess_image)
+        size = min(orig_h, orig_w)
+        if size > 512:
+            scale = 512.0 / size
+            target_h = int(orig_h * scale)
+            target_w = int(orig_w * scale)
+            if max(target_h, target_w) > 680:
+                scale = 680.0 / max(orig_h, orig_w)
+                target_h = int(orig_h * scale)
+                target_w = int(orig_w * scale)
+        else:
+            target_h, target_w = orig_h, orig_w
+            scale = 1.0
+            
+        # Scale coordinates to match the processing size
+        scaled_x1 = int(x1 * scale)
+        scaled_y1 = int(y1 * scale)
+        scaled_x2 = int(x2 * scale)
+        scaled_y2 = int(y2 * scale)
+
+        # Create ObjectRemove instance with the models and image
+        obj_remover = ObjectRemove(
+            segmentModel=rcnn,
+            rcnn_transforms=transforms,
+            inpaintModel=deepfill,
+            image_path=temp_path
+        )
+        
+        # Set the reference points directly instead of using user_click
+        obj_remover.box = [scaled_x1, scaled_y1, scaled_x2, scaled_y2]
+        
+        # Run object removal
+        output = obj_remover.run()
+        
+        if output is None:
+            raise ValueError("Object removal failed to produce output")
+            
+        # Save the output image with a unique name
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        preview_filename = f"preview_{timestamp}_{original_filename}"
+        preview_path = os.path.join(TEMP_FOLDER, preview_filename)
+        
+        # Convert output to BGR for OpenCV
+        if isinstance(output, np.ndarray):
+            if output.ndim == 3 and output.shape[2] == 3:
+                output = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)
+        
+        # Save the preview image
+        cv2.imwrite(preview_path, output)
+
+        # Return the preview URL and original filename for confirmation
+        return jsonify({
+            'success': True,
+            'preview_url': f'/temp/{preview_filename}',
+            'original_filename': original_filename
+        })
+
+    except Exception as e:
+        print(f"Error during object removal: {str(e)}")
+        return jsonify({'error': f'Failed to remove object: {str(e)}'}), 500
+    finally:
+        # Clean up input temporary file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+@app.route('/temp/<path:filename>')
+def serve_temp_image(filename):
+    return send_from_directory(TEMP_FOLDER, filename)
+
+@app.route('/api/confirm_edit', methods=['POST'])
+def confirm_edit():
+    data = request.json
+    if not data or 'preview_filename' not in data or 'keep' not in data:
+        return jsonify({'error': 'Invalid request data'}), 400
+        
+    preview_filename = os.path.basename(data['preview_filename'])
+    keep = data['keep']
+    
+    preview_path = os.path.join(TEMP_FOLDER, preview_filename)
+    
+    try:
+        if keep:
+            # Move the preview file to the gallery
+            final_filename = preview_filename.replace('preview_', 'edited_')
+            final_path = os.path.join(GALLERY_FOLDER, final_filename)
+            os.rename(preview_path, final_path)
+            
+            # Return the final URL
+            return jsonify({
+                'success': True,
+                'edited_image_url': f'/images/{final_filename}'
+            })
+        else:
+            # Just delete the preview file
+            if os.path.exists(preview_path):
+                os.remove(preview_path)
+            return jsonify({'success': True})
+            
+    except Exception as e:
+        print(f"Error during edit confirmation: {str(e)}")
+        return jsonify({'error': f'Failed to confirm edit: {str(e)}'}), 500
 
 @app.route('/albums')
 def albums_page():

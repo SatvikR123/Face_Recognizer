@@ -10,7 +10,7 @@ This project is an advanced, local photo management application built with Pytho
 4.  **Automatic Albums**: View photos grouped by date and location.
 5.  **Object Removal**: Remove unwanted objects from your photos.
 
-The application uses a robust backend to handle image processing and a dynamic frontend for a seamless user experience. An alternative Streamlit-based UI is also available for more advanced visualization.
+The application uses a robust backend to handle image processing and a dynamic frontend for a seamless user experience. 
 
 ## Key Features
 

@@ -3,7 +3,7 @@ venv/
 temp/
 
 # Local data and secrets
-# images/
+images/
 gallery.db
 .env
 
